@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import Header from './components/Header';
 import Footer from './components/Footer';
 import Home from './pages/Home';
@@ -6,6 +7,7 @@ import Catalog from './pages/Catalog';
 import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import ProductPage from './pages/ProductPage';
+import Contacts from './pages/Contacts';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
@@ -27,13 +29,21 @@ function PublicLayout() {
 
 function App() {
   return (
-    <Routes>
+    <>
+      <Helmet>
+        <title>БУДУАР — Бутик розкішної білизни · Трускавець</title>
+        <meta name="description" content="Інтернет-магазин білизни, піжам, купальників та аксесуарів у Трускавці. 4 магазини в місті. Доставка по всій Україні." />
+        <meta property="og:site_name" content="БУДУАР" />
+        <meta property="og:locale" content="uk_UA" />
+      </Helmet>
+      <Routes>
       {/* Public Routes with Header and Footer */}
       <Route element={<PublicLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/catalog" element={<Catalog />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
+        <Route path="/contacts" element={<Contacts />} />
         <Route path="/product/:slug" element={<ProductPage />} />
       </Route>
       
@@ -52,6 +62,7 @@ function App() {
         <Route path="groups" element={<AdminGroups />} />
       </Route>
     </Routes>
+    </>
   );
 }
 

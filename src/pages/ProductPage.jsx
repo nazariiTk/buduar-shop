@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
 import { useCartStore } from '../store/useCartStore';
 
@@ -135,6 +136,16 @@ export default function ProductPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {product && (
+        <Helmet>
+          <title>{product.name} — БУДУАР</title>
+          <meta name="description" content={product.description || `${product.name} — купити в магазині БУДУАР у Трускавці. Доставка по Україні.`} />
+          <meta property="og:title" content={product.name} />
+          <meta property="og:description" content={product.description || ''} />
+          {photos[0] && <meta property="og:image" content={photos[0].url} />}
+          <meta property="og:type" content="product" />
+        </Helmet>
+      )}
       <div className="flex flex-col md:flex-row gap-12">
         {/* Left Column - Photos */}
         <div className="w-full md:w-3/5">

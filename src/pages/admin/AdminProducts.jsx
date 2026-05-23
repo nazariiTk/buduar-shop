@@ -152,6 +152,7 @@ export default function AdminProducts() {
           category_slug: null,
           confidence: null,
           description: '',
+          keywords: '',
           base_article_code: baseCode
         },
         isManual: true,
@@ -193,6 +194,7 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
   "size": "розмір або null",
   "size_type": "standard/bra/kids/combined або null",
   "category_slug": "обери одне: bras/panties/sets/bodysuits/pajamas/robes/nightgowns/swimsuits/bikinis/swim-tunics/towels/hats/sunglasses/flip-flops/suitcases/bags/kids-lingerie/kids-pajamas/kids-swimwear",
+  "keywords": "українські ключові слова через кому (синоніми, матеріал, призначення, стать). Наприклад для боксерів: труси, нижня білизна, чоловічі труси, боксери, бавовна",
   "confidence": 0.95
 }`;
 
@@ -276,6 +278,7 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             category_id: saveData.category_id || null,
             category: saveData.category_slug || null, // Optional for backward compatibility
             description: saveData.description || '',
+            keywords: saveData.keywords || null,
             base_article_code: saveData.base_article_code || null
           })
           .select('id')
@@ -513,6 +516,7 @@ function ParsingModal({ data, groupedCategories, categories, onSave, onCancel })
     category_id: matchedCat ? matchedCat.id : '',
     category_slug: data.parsed.category_slug || '',
     description: data.parsed.description || '',
+    keywords: data.parsed.keywords || '',
     base_article_code: data.parsed.base_article_code || '',
   });
 
@@ -628,6 +632,19 @@ function ParsingModal({ data, groupedCategories, categories, onSave, onCancel })
                 onChange={handleChange}
                 rows="3"
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none resize-y"
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Ключові слова для пошуку
+              </label>
+              <input
+                type="text"
+                name="keywords"
+                value={formData.keywords}
+                onChange={handleChange}
+                placeholder="труси, нижня білизна, чоловічі, бавовна..."
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
               />
             </div>
             <div className="col-span-2">

@@ -1,13 +1,25 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Menu, X } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
 
 export default function Header() {
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
   const [animateCart, setAnimateCart] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [expandedCategory, setExpandedCategory] = useState(null);
+  const [categories, setCategories] = useState([]);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    supabase.from('categories').select('*').order('sort_order')
+      .then(({ data }) => setCategories(data || []));
+  }, []);
+
+  const topLevel = categories.filter(c => !c.parent_id);
+  const subLevel = categories.filter(c => c.parent_id);
 
   useEffect(() => {
     if (itemCount > 0) {
@@ -37,6 +49,10 @@ export default function Header() {
           </div>
 
           <div className="flex items-center space-x-4 z-50 relative">
+            <Link to="/contacts" className="text-sm font-serif font-medium uppercase tracking-widest hover:text-[var(--color-primary)] transition-colors mt-0.5">
+              Про нас
+            </Link>
+
             <Link to="/cart" className="relative p-2 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors">
               <ShoppingBag className={`h-6 w-6 transition-transform duration-300 ${animateCart ? 'animate-bounce' : ''}`} />
               {itemCount > 0 && (
@@ -58,22 +74,57 @@ export default function Header() {
 
       {/* Mobile Menu */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-[var(--color-background)] flex flex-col pt-24 px-6">
-          <nav className="flex flex-col divide-y divide-gray-100">
-            <Link to="/catalog" onClick={() => setMenuOpen(false)} 
-              className="py-4 text-lg font-medium">Каталог</Link>
-            <Link to="/catalog?category=sleepwear" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Піжами та домашній одяг</Link>
-            <Link to="/catalog?category=lingerie" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Білизна</Link>
-            <Link to="/catalog?category=swimwear" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Купальники</Link>
-            <Link to="/catalog?category=kids" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Дитячі</Link>
-            <Link to="/catalog?category=beach" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Пляжні аксесуари</Link>
-            <Link to="/catalog?category=travel" onClick={() => setMenuOpen(false)}
-              className="py-4 text-gray-600">Дорожні аксесуари</Link>
+        <div className="fixed inset-0 z-40 bg-[var(--color-background)] flex flex-col pt-24 px-6 pb-6 overflow-y-auto">
+          <nav className="flex flex-col">
+            <Link to="/catalog" onClick={() => setMenuOpen(false)}
+              className="py-4 text-lg font-medium border-b border-gray-100">
+              Всі товари
+            </Link>
+            
+            {topLevel.map(cat => {
+              const subs = subLevel.filter(s => s.parent_id === cat.id);
+              const isExpanded = expandedCategory === cat.slug;
+              
+              return (
+                <div key={cat.id} className="border-b border-gray-100">
+                  <button
+                    onClick={() => setExpandedCategory(isExpanded ? null : cat.slug)}
+                    className="w-full flex justify-between items-center py-4 text-base font-medium"
+                  >
+                    {cat.name_uk}
+                    <span className={`transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                      ▾
+                    </span>
+                  </button>
+                  
+                  {isExpanded && subs.length > 0 && (
+                    <div className="pb-3 pl-4 flex flex-col gap-1">
+                      <Link
+                        to={`/catalog?category=${cat.slug}`}
+                        onClick={() => setMenuOpen(false)}
+                        className="py-2 text-sm text-gray-500"
+                      >
+                        Всі {cat.name_uk.toLowerCase()}
+                      </Link>
+                      {subs.map(sub => (
+                        <Link
+                          key={sub.id}
+                          to={`/catalog?category=${sub.slug}`}
+                          onClick={() => setMenuOpen(false)}
+                          className="py-2 text-sm text-gray-600"
+                        >
+                          {sub.name_uk}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <Link to="/contacts" onClick={() => setMenuOpen(false)}
+              className="py-4 text-lg font-medium border-b border-gray-100">
+              Контакти
+            </Link>
           </nav>
         </div>
       )}

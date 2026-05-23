@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadProductImage, deleteProductImage } from '../../services/storage.service';
-import { Loader2, Edit, Image as ImageIcon, Check, X, Plus, Trash2, Star } from 'lucide-react';
+import { Loader2, Edit, Image as ImageIcon, Check, X, Plus, Trash2, Star, Layers } from 'lucide-react';
 
 export default function AdminGroups() {
   const [groups, setGroups] = useState([]);
@@ -14,6 +14,7 @@ export default function AdminGroups() {
   // Modals state
   const [editGroup, setEditGroup] = useState(null); // { id, name, description, category_id, is_active }
   const [photoGroup, setPhotoGroup] = useState(null); // The whole group object
+  const [variantsGroup, setVariantsGroup] = useState(null);
 
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
@@ -88,6 +89,7 @@ export default function AdminGroups() {
         description: editGroup.description,
         category_id: editGroup.category_id || null,
         category: selectedCat ? selectedCat.slug : null,
+        keywords: editGroup.keywords || null,
         is_active: editGroup.is_active
       })
       .eq('id', editGroup.id);
@@ -283,6 +285,16 @@ export default function AdminGroups() {
                               {group.product_photos?.length || 0}
                             </span>
                           </button>
+                          <button
+                            onClick={() => setVariantsGroup(group)}
+                            className="text-gray-600 hover:text-purple-600 p-1 border border-gray-200 rounded bg-white relative"
+                            title="Варіанти"
+                          >
+                            <Layers className="h-4 w-4" />
+                            <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
+                              {group.product_variants?.length || 0}
+                            </span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -342,6 +354,17 @@ export default function AdminGroups() {
                   rows="4"
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
                 ></textarea>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова (через кому)</label>
+                <input
+                  type="text"
+                  name="keywords"
+                  value={editGroup.keywords || ''}
+                  onChange={handleEditChange}
+                  placeholder="труси, нижня білизна, чоловічі, бавовна..."
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                />
               </div>
               <div className="flex items-center">
                 <input
@@ -466,6 +489,264 @@ export default function AdminGroups() {
           </div>
         </div>
       )}
+
+      {/* VARIANTS MODAL */}
+      {variantsGroup && (
+        <VariantsModal
+          group={variantsGroup}
+          onClose={() => setVariantsGroup(null)}
+          onUpdate={(updatedGroup) => {
+            setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
+            setVariantsGroup(updatedGroup);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function VariantsModal({ group, onClose, onUpdate }) {
+  const [variants, setVariants] = useState(group.product_variants || []);
+  const [articles, setArticles] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [moving, setMoving] = useState(null); // variant id який переміщуємо
+  const [groupSearch, setGroupSearch] = useState('');
+  const [groupResults, setGroupResults] = useState([]);
+
+  // Завантажуємо деталі артикулів (ціна, назва з облікової)
+  useEffect(() => {
+    async function loadArticles() {
+      const ids = variants.map(v => v.article_id).filter(Boolean);
+      if (ids.length === 0) { setLoading(false); return; }
+      
+      const { data } = await supabase
+        .from('product_view')
+        .select('article_id, text_name, price, quantity, shop_name')
+        .in('article_id', ids);
+      
+      // Групуємо по article_id
+      const map = {};
+      data?.forEach(row => {
+        if (!map[row.article_id]) {
+          map[row.article_id] = { ...row, shops: [] };
+        }
+        map[row.article_id].shops.push({
+          shop_name: row.shop_name,
+          quantity: row.quantity
+        });
+      });
+      
+      setArticles(map);
+      setLoading(false);
+    }
+    loadArticles();
+  }, [variants]);
+
+  // Пошук груп для переміщення
+  useEffect(() => {
+    if (!groupSearch.trim()) { setGroupResults([]); return; }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase
+        .from('product_groups')
+        .select('id, name')
+        .ilike('name', `%${groupSearch}%`)
+        .neq('id', group.id)
+        .limit(8);
+      setGroupResults(data || []);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [groupSearch, group.id]);
+
+  const handleDelete = async (variant) => {
+    if (!window.confirm(`Видалити варіант ${variant.size || ''} ${variant.color || ''}?`)) return;
+    
+    const { error } = await supabase
+      .from('product_variants')
+      .delete()
+      .eq('id', variant.id);
+    
+    if (!error) {
+      const updated = variants.filter(v => v.id !== variant.id);
+      setVariants(updated);
+      onUpdate({ ...group, product_variants: updated });
+    }
+  };
+
+  const handleSetMain = async (variant) => {
+    // Скидаємо всі is_main для групи
+    await supabase
+      .from('product_variants')
+      .update({ is_main: false })
+      .eq('group_id', group.id);
+    
+    // Встановлюємо новий main
+    await supabase
+      .from('product_variants')
+      .update({ is_main: true })
+      .eq('id', variant.id);
+    
+    const updated = variants.map(v => ({ ...v, is_main: v.id === variant.id }));
+    setVariants(updated);
+    onUpdate({ ...group, product_variants: updated });
+  };
+
+  const handleMove = async (variant, targetGroupId) => {
+    const { error } = await supabase
+      .from('product_variants')
+      .update({ group_id: targetGroupId, is_main: false })
+      .eq('id', variant.id);
+    
+    if (!error) {
+      const updated = variants.filter(v => v.id !== variant.id);
+      setVariants(updated);
+      onUpdate({ ...group, product_variants: updated });
+      setMoving(null);
+      setGroupSearch('');
+      setGroupResults([]);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-md shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900">Варіанти групи</h3>
+            <p className="text-sm text-gray-500">{group.name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4">
+          {loading ? (
+            <div className="text-center py-8 text-gray-500">Завантаження...</div>
+          ) : variants.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">Варіантів немає</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th className="px-3 py-2 text-left">Артикул / Назва</th>
+                  <th className="px-3 py-2 text-left">Розмір</th>
+                  <th className="px-3 py-2 text-left">Колір</th>
+                  <th className="px-3 py-2 text-right">Ціна</th>
+                  <th className="px-3 py-2 text-center">Наявність</th>
+                  <th className="px-3 py-2 text-right">Дії</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {variants.map(variant => {
+                  const art = articles[variant.article_id];
+                  const totalQty = art?.shops?.reduce((s, sh) => s + (sh.quantity || 0), 0) || 0;
+                  
+                  return (
+                    <React.Fragment key={variant.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-3 py-3">
+                          <div className="font-medium text-gray-900">
+                            {variant.article_id}
+                            {variant.is_main && (
+                              <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                                Головний
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate max-w-[200px]" title={art?.text_name}>
+                            {art?.text_name || '—'}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3">{variant.size || '—'}</td>
+                        <td className="px-3 py-3">{variant.color || '—'}</td>
+                        <td className="px-3 py-3 text-right whitespace-nowrap">{art?.price || '—'} грн</td>
+                        <td className="px-3 py-3 text-center">
+                          <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+                            totalQty > 0 
+                              ? 'bg-green-100 text-green-700' 
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {totalQty > 0 ? `${totalQty} шт` : 'Немає'}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex justify-end gap-1">
+                            {!variant.is_main && (
+                              <button
+                                onClick={() => handleSetMain(variant)}
+                                className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 text-gray-600"
+                                title="Зробити головним"
+                              >
+                                ★
+                              </button>
+                            )}
+                            <button
+                              onClick={() => setMoving(moving === variant.id ? null : variant.id)}
+                              className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600"
+                              title="Перемістити в іншу групу"
+                            >
+                              →
+                            </button>
+                            <button
+                              onClick={() => handleDelete(variant)}
+                              className="text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 text-red-600"
+                              title="Видалити варіант"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      
+                      {/* Рядок переміщення */}
+                      {moving === variant.id && (
+                        <tr className="bg-blue-50">
+                          <td colSpan="6" className="px-3 py-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-700 font-medium whitespace-nowrap">
+                                Перемістити до:
+                              </span>
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  value={groupSearch}
+                                  onChange={e => setGroupSearch(e.target.value)}
+                                  placeholder="Пошук групи..."
+                                  className="w-full border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none"
+                                  autoFocus
+                                />
+                                {groupResults.length > 0 && (
+                                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto">
+                                    {groupResults.map(g => (
+                                      <div
+                                        key={g.id}
+                                        onClick={() => handleMove(variant, g.id)}
+                                        className="px-3 py-2 text-xs cursor-pointer hover:bg-gray-50"
+                                      >
+                                        {g.name}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => { setMoving(null); setGroupSearch(''); }}
+                                className="text-xs text-gray-500 hover:text-gray-700"
+                              >
+                                Скасувати
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

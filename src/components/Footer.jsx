@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function Footer() {
   return (
     <footer className="bg-[var(--color-text)] text-[var(--color-background)] py-12">
@@ -22,6 +24,11 @@ export default function Footer() {
           <div>
             <h4 className="font-bold mb-4 uppercase tracking-wider text-sm">Контакти</h4>
             <ul className="space-y-2 text-sm opacity-80">
+              <li>
+                <Link to="/contacts" className="hover:text-[var(--color-primary)] transition-colors underline mb-2 inline-block">
+                  Всі деталі та адреси на карті
+                </Link>
+              </li>
               <li>+38 095 57 31 070</li>
               <li>+38 098 26 22 460</li>
               <li className="pt-2">
