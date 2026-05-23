@@ -21,3 +21,11 @@ h1, h2, h3, h4, h5, h6 {
   font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   color: var(--color-text);
 }
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

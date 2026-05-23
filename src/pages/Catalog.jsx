@@ -160,7 +160,7 @@ export default function Catalog() {
         {/* Фільтри */}
         <div className="mb-12">
           {/* Рядок 1: Головні категорії */}
-          <div className="flex justify-center flex-wrap gap-4">
+          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide md:flex-wrap md:justify-center md:overflow-visible">
             <button
               onClick={() => {
                 setActiveParent(null);
@@ -198,7 +198,7 @@ export default function Catalog() {
 
           {/* Рядок 2: Підкатегорії */}
           {activeParent && visibleSubs.length > 0 && (
-            <div className="flex justify-center flex-wrap gap-3">
+            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide md:flex-wrap md:justify-center md:overflow-visible">
               <button
                 onClick={() => setSelectedCategory(activeParentObj.slug)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${selectedCategory === activeParentObj?.slug
