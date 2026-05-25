@@ -24,6 +24,28 @@ export default function AdminProducts() {
   const [categories, setCategories] = useState([]);
   const [groupedCategories, setGroupedCategories] = useState([]);
 
+  // Dictionaries
+  const [brands, setBrands] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [materials, setMaterials] = useState([]);
+
+  useEffect(() => {
+    async function loadDicts() {
+      const [b, c, s, m] = await Promise.all([
+        supabase.from('brands').select('*').order('name'),
+        supabase.from('colors').select('*').order('name_uk'),
+        supabase.from('sizes').select('*').order('sort_order'),
+        supabase.from('materials').select('*').order('sort_order'),
+      ]);
+      setBrands(b.data || []);
+      setColors(c.data || []);
+      setSizes(s.data || []);
+      setMaterials(m.data || []);
+    }
+    loadDicts();
+  }, []);
+
   useEffect(() => {
     async function loadCategories() {
       const { data } = await supabase.from('categories').select('*').order('sort_order');
@@ -185,7 +207,7 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
 
 Поверни ТІЛЬКИ JSON без жодного тексту навколо:
 {
-  "brand": "бренд або null",
+  "brand_name": "назва бренду як є в назві товару або null",
   "product_type": "тип товару українською (піжама/бюстгальтер/труси/купальник/халат/майка/блуза/боді/комплект/шорти/футболка тощо)",
   "base_name": "назва для покупця без розміру і кольору",
   "description": "текст SEO-опису",
@@ -195,6 +217,8 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
   "size_type": "standard/bra/kids/combined або null",
   "category_slug": "обери одне: bras/panties/sets/bodysuits/pajamas/robes/nightgowns/swimsuits/bikinis/swim-tunics/towels/hats/sunglasses/flip-flops/suitcases/bags/kids-lingerie/kids-pajamas/kids-swimwear",
   "keywords": "українські ключові слова через кому (синоніми, матеріал, призначення, стать). Наприклад для боксерів: труси, нижня білизна, чоловічі труси, боксери, бавовна",
+  "gender": "women/men/kids/unisex — визначити з контексту",
+  "materials": ["Бавовна", "Еластан"],
   "confidence": 0.95
 }`;
 
@@ -242,6 +266,21 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
       const clean = text.replace(/```json|```/g, '').trim();
       const parsedData = JSON.parse(clean);
 
+      // Знайти бренд по назві
+      if (parsedData.brand_name) {
+        const found = brands.find(b => 
+          b.name.toLowerCase() === parsedData.brand_name.toLowerCase()
+        );
+        if (found) parsedData.brand_id = found.id;
+      }
+
+      // Знайти матеріали
+      if (parsedData.materials) {
+        parsedData.material_ids = parsedData.materials
+          .map(name => materials.find(m => m.name_uk.toLowerCase() === name.toLowerCase())?.id)
+          .filter(Boolean);
+      }
+
       const baseCode = article.code; // Use article.code directly
       parsedData.base_article_code = baseCode;
 
@@ -279,7 +318,9 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             category: saveData.category_slug || null, // Optional for backward compatibility
             description: saveData.description || '',
             keywords: saveData.keywords || null,
-            base_article_code: saveData.base_article_code || null
+            base_article_code: saveData.base_article_code || null,
+            brand_id: saveData.brand_id || null,
+            gender: saveData.gender || null
           })
           .select('id')
           .single();
@@ -326,6 +367,8 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             article_id: article.id,
             size: saveData.size,
             color: saveData.color_ua,
+            size_id: saveData.size_id || null,
+            color_id: saveData.color_id || null,
             is_main: true
           });
 
@@ -344,10 +387,21 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             article_id: article.id,
             size: saveData.size,
             color: saveData.color_ua,
+            size_id: saveData.size_id || null,
+            color_id: saveData.color_id || null,
             is_main: false
           });
 
         if (varErr) throw varErr;
+      }
+
+      if (saveData.material_ids?.length > 0) {
+        await supabase.from('product_materials').insert(
+          saveData.material_ids.map(material_id => ({
+            group_id: targetGroupId,
+            material_id
+          }))
+        );
       }
 
       // Success
@@ -493,6 +547,10 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
           data={currentParsed}
           groupedCategories={groupedCategories}
           categories={categories}
+          brands={brands}
+          colors={colors}
+          sizes={sizes}
+          materials={materials}
           onSave={handleSaveParsed}
           onCancel={handleCancelParsed}
         />
@@ -501,14 +559,18 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
   );
 }
 
-function ParsingModal({ data, groupedCategories, categories, onSave, onCancel }) {
+function ParsingModal({ data, groupedCategories, categories, brands, colors, sizes, materials, onSave, onCancel }) {
   const isManual = data.isManual || false;
 
   // Try to find the category ID if AI returned a slug
   const matchedCat = categories.find(c => c.slug === data.parsed.category_slug);
 
   const [formData, setFormData] = useState({
-    brand: data.parsed.brand || '',
+    brand_id: data.parsed.brand_id || '',
+    color_id: data.parsed.color_id || '',
+    size_id: data.parsed.size_id || '',
+    gender: data.parsed.gender || '',
+    material_ids: data.parsed.material_ids || [],
     product_type: data.parsed.product_type || '',
     base_name: data.parsed.base_name || '',
     color_ua: data.parsed.color_ua || '',
@@ -593,7 +655,22 @@ function ParsingModal({ data, groupedCategories, categories, onSave, onCancel })
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Бренд</label>
-              <input type="text" name="brand" value={formData.brand} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+              <select name="brand_id" value={formData.brand_id} onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="">— Оберіть або залиште порожнім —</option>
+                {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Для кого</label>
+              <select name="gender" value={formData.gender} onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="">— Оберіть —</option>
+                <option value="women">Жінки</option>
+                <option value="men">Чоловіки</option>
+                <option value="kids">Діти</option>
+                <option value="unisex">Унісекс</option>
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Тип товару</label>
@@ -604,12 +681,39 @@ function ParsingModal({ data, groupedCategories, categories, onSave, onCancel })
               <input type="text" name="base_name" value={formData.base_name} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Колір (UA)</label>
-              <input type="text" name="color_ua" value={formData.color_ua} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+              <label className="block text-xs font-medium text-gray-500 mb-1">Колір</label>
+              <select name="color_id" value={formData.color_id} onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="">— Оберіть —</option>
+                {colors.map(c => <option key={c.id} value={c.id}>{c.name_uk} {c.name_original ? `(${c.name_original})` : ''}</option>)}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Розмір</label>
-              <input type="text" name="size" value={formData.size} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+              <select name="size_id" value={formData.size_id} onChange={handleChange}
+                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                <option value="">— Оберіть —</option>
+                <optgroup label="Стандартні">
+                  {sizes.filter(s => s.size_type === 'standard').map(s => 
+                    <option key={s.id} value={s.id}>{s.value}</option>)}
+                </optgroup>
+                <optgroup label="Комбіновані">
+                  {sizes.filter(s => s.size_type === 'combined').map(s => 
+                    <option key={s.id} value={s.id}>{s.value}</option>)}
+                </optgroup>
+                <optgroup label="Числові (жіночі)">
+                  {sizes.filter(s => s.size_type === 'numeric').map(s => 
+                    <option key={s.id} value={s.id}>{s.value}</option>)}
+                </optgroup>
+                <optgroup label="Бюстгальтерні">
+                  {sizes.filter(s => s.size_type === 'bra').map(s => 
+                    <option key={s.id} value={s.id}>{s.value}</option>)}
+                </optgroup>
+                <optgroup label="Дитячі">
+                  {sizes.filter(s => s.size_type === 'kids').map(s => 
+                    <option key={s.id} value={s.id}>{s.value}</option>)}
+                </optgroup>
+              </select>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Категорія</label>
@@ -623,6 +727,33 @@ function ParsingModal({ data, groupedCategories, categories, onSave, onCancel })
                   </optgroup>
                 ))}
               </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-2">Матеріали</label>
+              <div className="flex flex-wrap gap-2">
+                {materials.map(m => (
+                  <label key={m.id} className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs cursor-pointer transition-colors ${
+                    formData.material_ids.includes(m.id)
+                      ? 'bg-gray-800 text-white border-gray-800'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      className="hidden"
+                      checked={formData.material_ids.includes(m.id)}
+                      onChange={() => {
+                        setFormData(prev => ({
+                          ...prev,
+                          material_ids: prev.material_ids.includes(m.id)
+                            ? prev.material_ids.filter(id => id !== m.id)
+                            : [...prev.material_ids, m.id]
+                        }));
+                      }}
+                    />
+                    {m.name_uk}
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Опис товару (ШІ)</label>

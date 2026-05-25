@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { Search, X } from 'lucide-react';
+import { Search, X, Filter } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
+import FilterSidebar from '../components/FilterSidebar';
 import { supabase } from '../lib/supabase';
 
 const PAGE_SIZE = 24;
@@ -24,6 +25,8 @@ export default function Catalog() {
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
   useEffect(() => {
     setPage(0);
   }, [selectedCategory, searchQuery]);
@@ -32,15 +35,6 @@ export default function Catalog() {
   useEffect(() => {
     if (categoryFromUrl && categories.length > 0) {
       setSelectedCategory(categoryFromUrl);
-      const catObj = categories.find(c => c.slug === categoryFromUrl);
-      if (catObj) {
-        if (!catObj.parent_id) {
-          setActiveParent(categoryFromUrl);
-        } else {
-          const parentObj = categories.find(c => c.id === catObj.parent_id);
-          if (parentObj) setActiveParent(parentObj.slug);
-        }
-      }
     }
   }, [categoryFromUrl, categories]);
 
@@ -64,11 +58,7 @@ export default function Catalog() {
     fetchCategories();
   }, []);
 
-  const topLevel = useMemo(() => categories.filter(c => !c.parent_id), [categories]);
-  const subLevel = useMemo(() => categories.filter(c => c.parent_id), [categories]);
 
-  const activeParentObj = useMemo(() => categories.find(c => c.slug === activeParent), [categories, activeParent]);
-  const visibleSubs = useMemo(() => subLevel.filter(c => c.parent_id === activeParentObj?.id), [subLevel, activeParentObj]);
 
   useEffect(() => {
     async function fetchProducts() {
@@ -82,27 +72,29 @@ export default function Catalog() {
           .eq('is_active', true)
           .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
-        const selectedCatObj = categories.find(c => c.slug === selectedCategory);
-        let categorySlugs = [];
-
-        if (selectedCatObj) {
-          if (!selectedCatObj.parent_id) {
-            // Верхня — беремо її і всі підкатегорії
-            const childSlugs = subLevel
-              .filter(c => c.parent_id === selectedCatObj.id)
-              .map(c => c.slug);
-            categorySlugs = [selectedCategory, ...childSlugs];
-          } else {
-            // Підкатегорія — тільки вона
-            categorySlugs = [selectedCategory];
-          }
-        }
-
         if (searchQuery.length >= 2) {
           const safe = searchQuery.replace(/[,%]/g, '');
           query = query.or(`name.ilike.%${safe}%,keywords.ilike.%${safe}%`);
-        } else if (categorySlugs.length > 0) {
-          query = query.in('category', categorySlugs);
+        } else if (selectedCategory) {
+          // Знаходимо всіх нащадків обраної категорії
+          const allCategories = categories;
+          const cat = allCategories.find(c => c.slug === selectedCategory);
+          
+          if (cat) {
+            // Збираємо slug обраної + всіх дочірніх
+            const children = allCategories.filter(c => c.parent_id === cat.id);
+            const grandchildren = allCategories.filter(c => 
+              children.some(ch => ch.id === c.parent_id)
+            );
+            
+            const slugs = [
+              cat.slug,
+              ...children.map(c => c.slug),
+              ...grandchildren.map(c => c.slug)
+            ];
+            
+            query = query.in('category', slugs);
+          }
         }
 
         const { data: catalogData, error, count } = await query;
@@ -168,104 +160,69 @@ export default function Catalog() {
     }
 
     fetchProducts();
-  }, [selectedCategory, categoriesLoading, categories, subLevel, page, searchQuery]);
+  }, [selectedCategory, categoriesLoading, categories, page, searchQuery]);
 
   return (
-    <div className="py-12">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <Helmet>
         <title>Каталог товарів — БУДУАР</title>
         <meta name="description" content="Великий вибір білизни, піжам, купальників та аксесуарів. Доставка по всій Україні." />
       </Helmet>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-serif mb-8 text-center">Каталог товарів</h1>
+      
+      <h1 className="text-3xl font-serif mb-8">Каталог товарів</h1>
 
-        {/* Пошуковий рядок */}
-        <div className="relative max-w-lg mx-auto mb-8">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => {
-              setSearchQuery(e.target.value);
+      <div className="flex gap-8">
+        {/* Бічна панель — десктоп */}
+        <aside className="hidden lg:block w-64 flex-shrink-0">
+          <FilterSidebar
+            categories={categories}
+            selectedCategory={selectedCategory}
+            onSelectCategory={(slug) => {
+              setSelectedCategory(slug || null);
               setPage(0);
             }}
-            placeholder="Пошук товарів..."
-            className="w-full pl-11 pr-10 py-3 border border-gray-200 rounded-full text-sm focus:outline-none focus:border-gray-400 bg-white"
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
           />
-          {searchQuery && (
-            <button
-              onClick={() => { setSearchQuery(''); setPage(0); }}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        </aside>
 
-        {/* Фільтри */}
-        {!searchQuery && (
-          <div className="mb-12">
-            {/* Рядок 1: Головні категорії */}
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide px-4 md:px-0 md:flex-wrap md:justify-center">
+        {/* Основний контент */}
+        <div className="flex-1 min-w-0">
+          {/* Мобільний пошук і фільтр */}
+          <div className="lg:hidden mb-4 flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setPage(0); }}
+                placeholder="Пошук..."
+                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none"
+              />
+            </div>
             <button
-              onClick={() => {
-                setActiveParent(null);
-                setSelectedCategory(null);
-              }}
-              className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeParent === null
-                ? 'bg-gray-800 text-white'
-                : 'bg-white border border-gray-200 text-gray-700'
-                }`}
+              onClick={() => setMobileFiltersOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-sm"
             >
-              Всі
+              <Filter className="h-4 w-4" />
+              Фільтри
             </button>
-
-            {!categoriesLoading && topLevel.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setActiveParent(cat.slug);
-                  setSelectedCategory(cat.slug);
-                }}
-                className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${activeParent === cat.slug
-                  ? 'bg-gray-800 text-white'
-                  : 'bg-white border border-gray-200 text-gray-700'
-                  }`}
-              >
-                {cat.name_uk}
-              </button>
-            ))}
           </div>
 
-          {/* Рядок 2: Підкатегорії */}
-          {activeParent && visibleSubs.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide px-4 md:px-0 md:flex-wrap md:justify-center mt-3">
+          {/* Активний фільтр — показуємо що обрано */}
+          {selectedCategory && !searchQuery && (
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-gray-500">
+                {categories.find(c => c.slug === selectedCategory)?.name_uk}
+              </span>
               <button
-                onClick={() => setSelectedCategory(activeParentObj.slug)}
-                className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${selectedCategory === activeParentObj?.slug
-                  ? 'bg-[var(--color-primary-light)] text-[var(--color-text)]'
-                  : 'bg-gray-100 text-gray-600'
-                  }`}
+                onClick={() => { setSelectedCategory(null); setPage(0); }}
+                className="text-xs text-gray-400 hover:text-gray-600"
               >
-                Всі
+                ✕ Скинути
               </button>
-
-              {visibleSubs.map((sub) => (
-                <button
-                  key={sub.id}
-                  onClick={() => setSelectedCategory(sub.slug)}
-                  className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap ${selectedCategory === sub.slug
-                    ? 'bg-[var(--color-primary-light)] text-[var(--color-text)]'
-                    : 'bg-gray-100 text-gray-600'
-                    }`}
-                >
-                  {sub.name_uk}
-                </button>
-              ))}
             </div>
           )}
-        </div>
-        )}
 
         {loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-8">
@@ -378,11 +335,39 @@ export default function Catalog() {
         )}
 
         {totalCount > 0 && (
-          <p className="text-center text-sm text-gray-400 mt-4">
-            Показано {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} з {totalCount} товарів
+          <p className="text-center text-sm text-gray-500 mt-4">
+            Показано {products.length} з {totalCount} товарів
           </p>
         )}
+        </div>
       </div>
+
+      {/* Мобільний drawer з фільтрами */}
+      {mobileFiltersOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black bg-opacity-40"
+            onClick={() => setMobileFiltersOpen(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="font-medium">Фільтри</h3>
+              <button onClick={() => setMobileFiltersOpen(false)}>
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <FilterSidebar
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onSelectCategory={(slug) => {
+                setSelectedCategory(slug || null);
+                setPage(0);
+                setMobileFiltersOpen(false);
+              }}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

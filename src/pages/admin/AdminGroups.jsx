@@ -19,10 +19,30 @@ export default function AdminGroups() {
   const [saving, setSaving] = useState(false);
   const fileInputRef = useRef(null);
 
+  // Dictionaries
+  const [brands, setBrands] = useState([]);
+  const [colors, setColors] = useState([]);
+  const [sizes, setSizes] = useState([]);
+  const [materials, setMaterials] = useState([]);
+
   useEffect(() => {
     fetchData();
     fetchCategories();
+    loadDicts();
   }, []);
+
+  async function loadDicts() {
+    const [b, c, s, m] = await Promise.all([
+      supabase.from('brands').select('*').order('name'),
+      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('sizes').select('*').order('sort_order'),
+      supabase.from('materials').select('*').order('sort_order'),
+    ]);
+    setBrands(b.data || []);
+    setColors(c.data || []);
+    setSizes(s.data || []);
+    setMaterials(m.data || []);
+  }
 
   async function fetchCategories() {
     const { data } = await supabase.from('categories').select('*').order('sort_order');
@@ -90,7 +110,10 @@ export default function AdminGroups() {
         category_id: editGroup.category_id || null,
         category: selectedCat ? selectedCat.slug : null,
         keywords: editGroup.keywords || null,
-        is_active: editGroup.is_active
+        is_active: editGroup.is_active,
+        brand_id: editGroup.brand_id || null,
+        gender: editGroup.gender || null,
+        care_instructions: editGroup.care_instructions || null
       })
       .eq('id', editGroup.id);
 
@@ -346,6 +369,33 @@ export default function AdminGroups() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Бренд</label>
+                <select
+                  name="brand_id"
+                  value={editGroup.brand_id || ''}
+                  onChange={handleEditChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white"
+                >
+                  <option value="">— Оберіть або залиште порожнім —</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Для кого (Стать)</label>
+                <select
+                  name="gender"
+                  value={editGroup.gender || ''}
+                  onChange={handleEditChange}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white"
+                >
+                  <option value="">— Оберіть —</option>
+                  <option value="women">Жінки</option>
+                  <option value="men">Чоловіки</option>
+                  <option value="kids">Діти</option>
+                  <option value="unisex">Унісекс</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
                 <textarea
                   name="description"
@@ -365,6 +415,16 @@ export default function AdminGroups() {
                   placeholder="труси, нижня білизна, чоловічі, бавовна..."
                   className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Інструкція з догляду</label>
+                <textarea
+                  name="care_instructions"
+                  value={editGroup.care_instructions || ''}
+                  onChange={handleEditChange}
+                  rows="3"
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                ></textarea>
               </div>
               <div className="flex items-center">
                 <input
