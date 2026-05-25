@@ -64,7 +64,7 @@ export default function AdminGroups() {
       .select(`
         *,
         product_photos(id, url, is_main, sort_order),
-        product_variants(id, size, color, article_id, is_main)
+        product_variants(id, size, color, article_id, is_main, color_id, size_id)
       `)
       .order('created_at', { ascending: false });
     
@@ -554,6 +554,8 @@ export default function AdminGroups() {
       {variantsGroup && (
         <VariantsModal
           group={variantsGroup}
+          colors={colors}
+          sizes={sizes}
           onClose={() => setVariantsGroup(null)}
           onUpdate={(updatedGroup) => {
             setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
@@ -565,13 +567,33 @@ export default function AdminGroups() {
   );
 }
 
-function VariantsModal({ group, onClose, onUpdate }) {
+function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
   const [variants, setVariants] = useState(group.product_variants || []);
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(true);
   const [moving, setMoving] = useState(null); // variant id який переміщуємо
   const [groupSearch, setGroupSearch] = useState('');
   const [groupResults, setGroupResults] = useState([]);
+
+  const handleUpdateVariantAttribute = async (variantId, field, value) => {
+    const dbValue = value === "" ? null : value;
+    try {
+      const { error } = await supabase
+        .from('product_variants')
+        .update({ [field]: dbValue })
+        .eq('id', variantId);
+
+      if (error) throw error;
+
+      const updated = variants.map(v => 
+        v.id === variantId ? { ...v, [field]: dbValue } : v
+      );
+      setVariants(updated);
+      onUpdate({ ...group, product_variants: updated });
+    } catch (error) {
+      alert('Помилка оновлення: ' + error.message);
+    }
+  };
 
   // Завантажуємо деталі артикулів (ціна, назва з облікової)
   useEffect(() => {
@@ -713,12 +735,34 @@ function VariantsModal({ group, onClose, onUpdate }) {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500 truncate max-w-[200px]" title={art?.text_name}>
+                          <div className="text-xs text-gray-500" title={art?.text_name}>
                             {art?.text_name || '—'}
                           </div>
                         </td>
-                        <td className="px-3 py-3">{variant.size || '—'}</td>
-                        <td className="px-3 py-3">{variant.color || '—'}</td>
+                        <td className="px-3 py-3">
+                          <select
+                            value={variant.size_id || ""}
+                            onChange={(e) => handleUpdateVariantAttribute(variant.id, 'size_id', e.target.value)}
+                            className="border border-transparent hover:border-gray-300 rounded px-1 py-1 text-sm bg-transparent cursor-pointer focus:border-blue-500 focus:bg-white transition-all w-full"
+                          >
+                            <option value="">—</option>
+                            {sizes.map(s => (
+                              <option key={s.id} value={s.id}>{s.value}</option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-3">
+                          <select
+                            value={variant.color_id || ""}
+                            onChange={(e) => handleUpdateVariantAttribute(variant.id, 'color_id', e.target.value)}
+                            className="border border-transparent hover:border-gray-300 rounded px-1 py-1 text-sm bg-transparent cursor-pointer focus:border-blue-500 focus:bg-white transition-all w-full"
+                          >
+                            <option value="">—</option>
+                            {colors.map(c => (
+                              <option key={c.id} value={c.id}>{c.name_uk}</option>
+                            ))}
+                          </select>
+                        </td>
                         <td className="px-3 py-3 text-right whitespace-nowrap">{art?.price || '—'} грн</td>
                         <td className="px-3 py-3 text-center">
                           <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
