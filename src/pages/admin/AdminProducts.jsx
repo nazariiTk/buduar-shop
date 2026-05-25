@@ -12,6 +12,7 @@ export default function AdminProducts() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [inStockOnly, setInStockOnly] = useState(true);
 
   const [selectedIds, setSelectedIds] = useState(new Set());
 
@@ -30,20 +31,21 @@ export default function AdminProducts() {
   const [sizes, setSizes] = useState([]);
   const [materials, setMaterials] = useState([]);
 
+  const reloadDicts = async () => {
+    const [b, c, s, m] = await Promise.all([
+      supabase.from('brands').select('*').order('name'),
+      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('sizes').select('*').order('sort_order'),
+      supabase.from('materials').select('*').order('sort_order'),
+    ]);
+    setBrands(b.data || []);
+    setColors(c.data || []);
+    setSizes(s.data || []);
+    setMaterials(m.data || []);
+  };
+
   useEffect(() => {
-    async function loadDicts() {
-      const [b, c, s, m] = await Promise.all([
-        supabase.from('brands').select('*').order('name'),
-        supabase.from('colors').select('*').order('name_uk'),
-        supabase.from('sizes').select('*').order('sort_order'),
-        supabase.from('materials').select('*').order('sort_order'),
-      ]);
-      setBrands(b.data || []);
-      setColors(c.data || []);
-      setSizes(s.data || []);
-      setMaterials(m.data || []);
-    }
-    loadDicts();
+    reloadDicts();
   }, []);
 
   useEffect(() => {
@@ -77,11 +79,11 @@ export default function AdminProducts() {
 
   useEffect(() => {
     setPage(0);
-  }, [debouncedQuery]);
+  }, [debouncedQuery, inStockOnly]);
 
   useEffect(() => {
     fetchArticles();
-  }, [page, debouncedQuery]);
+  }, [page, debouncedQuery, inStockOnly]);
 
   const isProcessingRef = useRef(false);
 
@@ -102,14 +104,19 @@ export default function AdminProducts() {
       const linkedIds = variants?.map(v => v.article_id).filter(Boolean) || [];
 
       // 2. Fetch unlinked articles
+      // 2. Fetch unlinked articles
       let query = supabase
-        .from('articles')
-        .select('id, code, text_name, full_name, barcode, price', { count: 'exact' })
+        .from('product_view')
+        .select('article_id, code, text_name, full_name, barcode, price, quantity, shop_name', { count: 'exact' })
         .eq('is_deleted', false)
         .range(page * 50, page * 50 + 49);
 
+      if (inStockOnly) {
+        query = query.gt('quantity', 0);
+      }
+
       if (linkedIds.length > 0) {
-        query = query.not('id', 'in', `(${linkedIds.join(',')})`);
+        query = query.not('article_id', 'in', `(${linkedIds.join(',')})`);
       }
 
       if (debouncedQuery) {
@@ -120,7 +127,24 @@ export default function AdminProducts() {
       const { data, count, error } = await query;
       if (error) throw error;
 
-      setArticles(data || []);
+      // Group duplicates and calculate total quantity
+      const groupedProducts = (data || []).reduce((acc, curr) => {
+        const qty = Number(curr.quantity) || 0;
+        if (!acc[curr.code]) {
+          acc[curr.code] = {
+            ...curr,
+            id: curr.article_id, // Map article_id back to id for UI compatibility
+            total_quantity: qty,
+            locations: [{ shop: curr.shop_name, qty: qty }]
+          };
+        } else {
+          acc[curr.code].total_quantity += qty;
+          acc[curr.code].locations.push({ shop: curr.shop_name, qty: qty });
+        }
+        return acc;
+      }, {});
+
+      setArticles(Object.values(groupedProducts));
       if (count !== null) setTotalCount(count);
     } catch (err) {
       console.error('Error fetching articles:', err);
@@ -167,15 +191,12 @@ export default function AdminProducts() {
           brand: null,
           product_type: '',
           base_name: article.text_name,
-          color_original: null,
-          color_ua: '',
-          size: '',
-          size_type: null,
           category_slug: null,
           confidence: null,
           description: '',
           keywords: '',
-          base_article_code: baseCode
+          base_article_code: baseCode,
+          variants: []
         },
         isManual: true,
         autoGroup: existingGroup
@@ -189,21 +210,37 @@ export default function AdminProducts() {
     setIsParsing(true);
     const article = parsingQueue[0];
     try {
-      const promptText = `Розбери назву товару з магазину білизни та одягу.
+      const { data: allArticles, error: fetchErr } = await supabase
+        .from('product_view')
+        .select('*')
+        .eq('code', article.code);
+        
+      if (fetchErr) throw fetchErr;
 
-Артикул: ${article.code}
-Назва: ${article.text_name}
-Штрихкод: ${article.barcode}
+      const uniqueVariantsMap = new Map();
+      (allArticles || []).forEach(a => {
+        if (!uniqueVariantsMap.has(a.article_id)) {
+          uniqueVariantsMap.set(a.article_id, a);
+        }
+      });
+      const uniqueVariants = Array.from(uniqueVariantsMap.values());
+      
+      const variantsText = uniqueVariants.map(v => `- id: ${v.article_id}, назва: ${v.text_name}`).join('\\n');
+      const availableColors = colors.map(c => c.name_uk).join(', ');
+      const availableSizes = sizes.map(s => s.value).join(', ');
 
-Кольори італійською: NERO=чорний, GRIGIO=сірий, BIANCO=білий,
-ROSSO=червоний, BLU=синій, BEIGE=бежевий, ROSA=рожевий,
-AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесний.
+      const promptText = `Розбери групу товарів магазину білизни та одягу.
+Код товару: ${article.code}
 
-Розміри: XS/S/M/L/XL/XXL — стандартні, числові (36-56) — жіночі,
-дитячі вікові (2/3, 5/6, 13/14, 15/16), бюстгальтерні (80B, 85C, 42F),
-комбіновані (S/M, L/XL).
+У нас є такі унікальні артикули (варіанти) для цього коду:
+${variantsText}
 
-Згенеруй також привабливий SEO-опис товару на 2-3 речення, використовуючи розпізнані характеристики (бренд, тип, колір).
+Доступні кольори в базі: ${availableColors}
+Доступні розміри в базі: ${availableSizes}
+
+Зістав кожен варіант ТІЛЬКИ з доступними кольорами та розмірами з наданого списку. Якщо точного збігу немає, поверни null.
+
+Згенеруй також привабливий SEO-опис товару на 2-3 речення, використовуючи розпізнані характеристики (бренд, тип).
 
 Поверни ТІЛЬКИ JSON без жодного тексту навколо:
 {
@@ -211,14 +248,13 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
   "product_type": "тип товару українською (піжама/бюстгальтер/труси/купальник/халат/майка/блуза/боді/комплект/шорти/футболка тощо)",
   "base_name": "назва для покупця без розміру і кольору",
   "description": "текст SEO-опису",
-  "color_original": "колір як в назві або null",
-  "color_ua": "колір українською або null",
-  "size": "розмір або null",
-  "size_type": "standard/bra/kids/combined або null",
   "category_slug": "обери одне: bras/panties/sets/bodysuits/pajamas/robes/nightgowns/swimsuits/bikinis/swim-tunics/towels/hats/sunglasses/flip-flops/suitcases/bags/kids-lingerie/kids-pajamas/kids-swimwear",
-  "keywords": "українські ключові слова через кому (синоніми, матеріал, призначення, стать). Наприклад для боксерів: труси, нижня білизна, чоловічі труси, боксери, бавовна",
+  "keywords": "українські ключові слова через кому (синоніми, матеріал, призначення, стать)",
   "gender": "women/men/kids/unisex — визначити з контексту",
   "materials": ["Бавовна", "Еластан"],
+  "variants": [
+    { "article_id": 123, "color_ua": "обраний колір або null", "size": "обраний розмір або null" }
+  ],
   "confidence": 0.95
 }`;
 
@@ -315,7 +351,6 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             name: saveData.base_name,
             slug: slug + '-' + Date.now(),
             category_id: saveData.category_id || null,
-            category: saveData.category_slug || null, // Optional for backward compatibility
             description: saveData.description || '',
             keywords: saveData.keywords || null,
             base_article_code: saveData.base_article_code || null,
@@ -358,42 +393,49 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
             alert('Групу створено, але не всі фото вдалося завантажити. Ви можете додати їх пізніше.');
           }
         }
-
-        // 4. Create variant
-        const { error: varErr } = await supabase
-          .from('product_variants')
-          .insert({
-            group_id: targetGroupId,
-            article_id: article.id,
-            size: saveData.size,
-            color: saveData.color_ua,
-            size_id: saveData.size_id || null,
-            color_id: saveData.color_id || null,
-            is_main: true
-          });
-
-        if (varErr) throw varErr;
-
-        if (varErr) throw varErr;
-
       } else {
         // Existing group
         if (!targetGroupId) throw new Error('Оберіть групу');
-
-        const { error: varErr } = await supabase
-          .from('product_variants')
-          .insert({
-            group_id: targetGroupId,
-            article_id: article.id,
-            size: saveData.size,
-            color: saveData.color_ua,
-            size_id: saveData.size_id || null,
-            color_id: saveData.color_id || null,
-            is_main: false
-          });
-
-        if (varErr) throw varErr;
       }
+
+      // 4. Create variants
+      const variantInserts = (saveData.variants || []).map(v => {
+        let colorId = null;
+        let sizeId = null;
+        if (v.color_ua) {
+          const foundColor = colors.find(c => c.name_uk.toLowerCase() === v.color_ua.toLowerCase());
+          if (foundColor) colorId = foundColor.id;
+        }
+        if (v.size) {
+          const foundSize = sizes.find(s => s.value.toLowerCase() === v.size.toLowerCase());
+          if (foundSize) sizeId = foundSize.id;
+        }
+        
+        return {
+          group_id: targetGroupId,
+          article_id: v.article_id,
+          size: v.size || '',
+          color: v.color_ua || '',
+          size_id: sizeId,
+          color_id: colorId,
+          is_main: v.article_id === article.id
+        };
+      });
+
+      if (variantInserts.length === 0) {
+        variantInserts.push({
+          group_id: targetGroupId,
+          article_id: article.id,
+          size: '',
+          color: '',
+          size_id: null,
+          color_id: null,
+          is_main: true
+        });
+      }
+
+      const { error: varErr } = await supabase.from('product_variants').insert(variantInserts);
+      if (varErr) throw varErr;
 
       if (saveData.material_ids?.length > 0) {
         await supabase.from('product_materials').insert(
@@ -430,13 +472,24 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
           <h1 className="text-3xl font-serif text-gray-800">Товари — парсинг</h1>
           <p className="text-sm text-gray-500 mt-1">Непов'язаних артикулів: {totalCount}</p>
         </div>
-        <button
-          onClick={handleParseSelected}
-          disabled={selectedIds.size === 0 || isParsing || parsingQueue.length > 0}
-          className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors whitespace-nowrap"
-        >
-          Розпарсити обрані ({selectedIds.size})
-        </button>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 whitespace-nowrap">
+            <input 
+              type="checkbox" 
+              checked={inStockOnly} 
+              onChange={(e) => setInStockOnly(e.target.checked)}
+              className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+            />
+            Тільки в наявності ({'>'} 0)
+          </label>
+          <button
+            onClick={handleParseSelected}
+            disabled={selectedIds.size === 0 || isParsing || parsingQueue.length > 0}
+            className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors whitespace-nowrap"
+          >
+            Розпарсити обрані ({selectedIds.size})
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 relative max-w-md">
@@ -524,7 +577,7 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
           </button>
           <span className="text-sm text-gray-500">Сторінка {page + 1}</span>
           <button
-            disabled={articles.length < 50}
+            disabled={(page + 1) * 50 >= totalCount}
             onClick={() => setPage(p => p + 1)}
             className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 bg-white"
           >
@@ -553,13 +606,14 @@ AVORIO=слонова кістка, CIPRIA=пудровий, NUDE=тілесни
           materials={materials}
           onSave={handleSaveParsed}
           onCancel={handleCancelParsed}
+          reloadDicts={reloadDicts}
         />
       )}
     </div>
   );
 }
 
-function ParsingModal({ data, groupedCategories, categories, brands, colors, sizes, materials, onSave, onCancel }) {
+function ParsingModal({ data, groupedCategories, categories, brands, colors, sizes, materials, onSave, onCancel, reloadDicts }) {
   const isManual = data.isManual || false;
 
   // Try to find the category ID if AI returned a slug
@@ -567,23 +621,67 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
 
   const [formData, setFormData] = useState({
     brand_id: data.parsed.brand_id || '',
-    color_id: data.parsed.color_id || '',
-    size_id: data.parsed.size_id || '',
     gender: data.parsed.gender || '',
     material_ids: data.parsed.material_ids || [],
     product_type: data.parsed.product_type || '',
     base_name: data.parsed.base_name || '',
-    color_ua: data.parsed.color_ua || '',
-    size: data.parsed.size || '',
     category_id: matchedCat ? matchedCat.id : '',
     category_slug: data.parsed.category_slug || '',
     description: data.parsed.description || '',
     keywords: data.parsed.keywords || '',
     base_article_code: data.parsed.base_article_code || '',
+    variants: data.parsed.variants || []
   });
 
   const [saveMode, setSaveMode] = useState(data.autoGroup ? 'existing' : 'new'); // 'new' | 'existing'
   const [selectedGroupId, setSelectedGroupId] = useState(data.autoGroup ? data.autoGroup.id : '');
+
+  // Quick Add states
+  const [quickAddType, setQuickAddType] = useState(null); // 'brand', 'color', 'size', 'material'
+  const [quickAddData, setQuickAddData] = useState({});
+  const [isQuickAdding, setIsQuickAdding] = useState(false);
+
+  const openQuickAdd = (type) => {
+    setQuickAddType(type);
+    if (type === 'brand') setQuickAddData({ name: '' });
+    if (type === 'color') setQuickAddData({ name_uk: '', hex: '#ffffff' });
+    if (type === 'size') setQuickAddData({ value: '', size_type: 'standard', sort_order: 0 });
+    if (type === 'material') setQuickAddData({ name_uk: '', sort_order: 0 });
+  };
+
+  const handleQuickAddSave = async () => {
+    if (quickAddType === 'brand' && !quickAddData.name?.trim()) return alert('Введіть назву бренду');
+    if (quickAddType === 'color' && !quickAddData.name_uk?.trim()) return alert('Введіть назву кольору');
+    if (quickAddType === 'size' && !quickAddData.value?.trim()) return alert('Введіть значення розміру');
+    if (quickAddType === 'material' && !quickAddData.name_uk?.trim()) return alert('Введіть назву матеріалу');
+
+    setIsQuickAdding(true);
+    try {
+      let payload = { ...quickAddData };
+      if (quickAddType === 'brand') {
+        payload.slug = generateSlug(payload.name);
+      }
+      if (quickAddType === 'color') {
+        payload.slug = generateSlug(payload.name_uk);
+      }
+
+      const { data: newRow, error } = await supabase.from(quickAddType + 's').insert(payload).select('*').single();
+      if (error) throw error;
+      
+      await reloadDicts();
+      
+      if (quickAddType === 'brand') setFormData(prev => ({...prev, brand_id: newRow.id}));
+      if (quickAddType === 'color') setFormData(prev => ({...prev, color_id: newRow.id}));
+      if (quickAddType === 'size') setFormData(prev => ({...prev, size_id: newRow.id}));
+      if (quickAddType === 'material') setFormData(prev => ({...prev, material_ids: [...prev.material_ids, newRow.id]}));
+      
+      setQuickAddType(null);
+    } catch (err) {
+      alert('Помилка додавання: ' + err.message);
+    } finally {
+      setIsQuickAdding(false);
+    }
+  };
 
   // Photo states
   const [selectedPhotos, setSelectedPhotos] = useState([]);
@@ -654,7 +752,10 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
         <div className="p-6 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Бренд</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-medium text-gray-500">Бренд</label>
+                <button onClick={() => openQuickAdd('brand')} className="text-[10px] text-blue-600 font-medium">+ Створити</button>
+              </div>
               <select name="brand_id" value={formData.brand_id} onChange={handleChange}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
                 <option value="">— Оберіть або залиште порожнім —</option>
@@ -680,41 +781,31 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               <label className="block text-xs font-medium text-gray-500 mb-1">Назва для сайту (base_name)</label>
               <input type="text" name="base_name" value={formData.base_name} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Колір</label>
-              <select name="color_id" value={formData.color_id} onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
-                <option value="">— Оберіть —</option>
-                {colors.map(c => <option key={c.id} value={c.id}>{c.name_uk} {c.name_original ? `(${c.name_original})` : ''}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Розмір</label>
-              <select name="size_id" value={formData.size_id} onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
-                <option value="">— Оберіть —</option>
-                <optgroup label="Стандартні">
-                  {sizes.filter(s => s.size_type === 'standard').map(s => 
-                    <option key={s.id} value={s.id}>{s.value}</option>)}
-                </optgroup>
-                <optgroup label="Комбіновані">
-                  {sizes.filter(s => s.size_type === 'combined').map(s => 
-                    <option key={s.id} value={s.id}>{s.value}</option>)}
-                </optgroup>
-                <optgroup label="Числові (жіночі)">
-                  {sizes.filter(s => s.size_type === 'numeric').map(s => 
-                    <option key={s.id} value={s.id}>{s.value}</option>)}
-                </optgroup>
-                <optgroup label="Бюстгальтерні">
-                  {sizes.filter(s => s.size_type === 'bra').map(s => 
-                    <option key={s.id} value={s.id}>{s.value}</option>)}
-                </optgroup>
-                <optgroup label="Дитячі">
-                  {sizes.filter(s => s.size_type === 'kids').map(s => 
-                    <option key={s.id} value={s.id}>{s.value}</option>)}
-                </optgroup>
-              </select>
-            </div>
+            {formData.variants && formData.variants.length > 0 && (
+              <div className="col-span-2 mt-4 mb-2">
+                <label className="block text-xs font-medium text-gray-500 mb-2">Знайдені варіанти (read-only)</label>
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded">
+                  <table className="w-full text-left text-sm whitespace-nowrap">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 font-medium">ID Артикулу</th>
+                        <th className="px-3 py-2 font-medium">Колір (ШІ)</th>
+                        <th className="px-3 py-2 font-medium">Розмір (ШІ)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {formData.variants.map(v => (
+                        <tr key={v.article_id}>
+                          <td className="px-3 py-1.5">{v.article_id}</td>
+                          <td className={`px-3 py-1.5 ${!v.color_ua && 'text-gray-400 italic'}`}>{v.color_ua || 'Не визначено'}</td>
+                          <td className={`px-3 py-1.5 ${!v.size && 'text-gray-400 italic'}`}>{v.size || 'Не визначено'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
             <div className="col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1">Категорія</label>
               <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none bg-white">
@@ -729,7 +820,10 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-2">Матеріали</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-xs font-medium text-gray-500">Матеріали</label>
+                <button onClick={() => openQuickAdd('material')} className="text-[10px] text-blue-600 font-medium">+ Створити</button>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {materials.map(m => (
                   <label key={m.id} className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs cursor-pointer transition-colors ${
@@ -859,6 +953,68 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
           </button>
         </div>
       </div>
+
+      {quickAddType && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-md shadow-xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-medium mb-4">
+              Додати {quickAddType === 'brand' ? 'бренд' : quickAddType === 'color' ? 'колір' : quickAddType === 'size' ? 'розмір' : 'матеріал'}
+            </h3>
+            
+            <div className="space-y-3 mb-6">
+              {(quickAddType === 'brand' || quickAddType === 'color' || quickAddType === 'material') && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Назва</label>
+                  <input type="text" value={quickAddData.name || quickAddData.name_uk || ''} 
+                    onChange={e => setQuickAddData({...quickAddData, [quickAddType === 'brand' ? 'name' : 'name_uk']: e.target.value})}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+                </div>
+              )}
+              {quickAddType === 'size' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Значення</label>
+                    <input type="text" value={quickAddData.value} onChange={e => setQuickAddData({...quickAddData, value: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Тип розміру</label>
+                    <select value={quickAddData.size_type} onChange={e => setQuickAddData({...quickAddData, size_type: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:outline-none">
+                      <option value="standard">Стандартний</option>
+                      <option value="numeric">Числовий</option>
+                      <option value="bra">Бюстгальтер</option>
+                      <option value="combined">Комбінований</option>
+                      <option value="kids">Дитячий</option>
+                    </select>
+                  </div>
+                </>
+              )}
+              {quickAddType === 'color' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">HEX-код</label>
+                  <div className="flex gap-2">
+                    <input type="color" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="h-9 w-9 p-0 border-0 rounded cursor-pointer" />
+                    <input type="text" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                  </div>
+                </div>
+              )}
+              {(quickAddType === 'size' || quickAddType === 'material') && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Сортування (0=найвище)</label>
+                  <input type="number" value={quickAddData.sort_order} onChange={e => setQuickAddData({...quickAddData, sort_order: parseInt(e.target.value)||0})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setQuickAddType(null)} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 transition-colors">Скасувати</button>
+              <button onClick={handleQuickAddSave} disabled={isQuickAdding} className="px-4 py-2 bg-gray-900 text-white rounded text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors">
+                {isQuickAdding ? 'Збереження...' : 'Додати'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -946,4 +1102,21 @@ function GroupCombobox({ value, initialName, onChange, onSelectNew }) {
       )}
     </div>
   );
+}
+
+function generateSlug(text) {
+  if (!text) return '';
+  const ukr = {
+    'а':'a','б':'b','в':'v','г':'h','ґ':'g','д':'d','е':'e','є':'ye','ж':'zh','з':'z','и':'y','і':'i','ї':'yi','й':'y',
+    'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch',
+    'ш':'sh','щ':'shch','ю':'yu','я':'ya','ь':''
+  };
+  return text
+    .toLowerCase()
+    .split('')
+    .map(char => ukr[char] || char)
+    .join('')
+    .replace(/[^a-z0-9-_ ]/g, '')
+    .trim()
+    .replace(/\s+/g, '-');
 }

@@ -20,12 +20,41 @@ export default function Catalog() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
   const [selectedCategory, setSelectedCategory] = useState(null);
-  const [activeParent, setActiveParent] = useState(null);
   
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  const [selectedSizes, setSelectedSizes] = useState(new Set());
+  const [selectedColors, setSelectedColors] = useState(new Set());
+  const [selectedBrands, setSelectedBrands] = useState(new Set());
+  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
+
+  // Завантажити довідники
+  const [filterSizes, setFilterSizes] = useState([]);
+  const [filterColors, setFilterColors] = useState([]);
+  const [filterBrands, setFilterBrands] = useState([]);
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('sizes').select('*').order('sort_order'),
+      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('brands').select('*').order('name'),
+    ]).then(([s, c, b]) => {
+      setFilterSizes(s.data || []);
+      setFilterColors(c.data || []);
+      setFilterBrands(b.data || []);
+    });
+  }, []);
+
+  useEffect(() => {
+    setSelectedSizes(new Set());
+    setSelectedColors(new Set());
+    setSelectedBrands(new Set());
+    setPriceRange({ min: '', max: '' });
+    setPage(0);
+  }, [selectedCategory]);
 
   useEffect(() => {
     setPage(0);
@@ -97,6 +126,42 @@ export default function Catalog() {
           }
         }
 
+        // Розміри — через product_variants
+        if (selectedSizes.size > 0) {
+          // Спочатку знаходимо group_id з потрібними розмірами
+          const { data: variantData } = await supabase
+            .from('product_variants')
+            .select('group_id')
+            .in('size_id', [...selectedSizes]);
+          
+          const groupIds = [...new Set(variantData?.map(v => v.group_id) || [])];
+          if (groupIds.length > 0) {
+            query = query.in('group_id', groupIds);
+          } else {
+            setProducts([]); setLoading(false); return;
+          }
+        }
+
+        // Кольори — через product_variants
+        if (selectedColors.size > 0) {
+          const { data: variantData } = await supabase
+            .from('product_variants')
+            .select('group_id')
+            .in('color_id', [...selectedColors]);
+          
+          const groupIds = [...new Set(variantData?.map(v => v.group_id) || [])];
+          if (groupIds.length > 0) {
+            query = query.in('group_id', groupIds);
+          } else {
+            setProducts([]); setLoading(false); return;
+          }
+        }
+
+        // Бренди — напряму в product_groups (через brand_id)
+        if (selectedBrands.size > 0) {
+          query = query.in('brand_id', [...selectedBrands]);
+        }
+
         const { data: catalogData, error, count } = await query;
         if (error) throw error;
         if (count !== null) setTotalCount(count);
@@ -150,7 +215,14 @@ export default function Catalog() {
           main_photo_url: p.main_photo_url || photoMap[p.group_id] || null
         }));
 
-        setProducts(productsWithPrice);
+        const productsFiltered = productsWithPrice.filter(p => {
+          const price = p.price;
+          if (priceRange.min && price < Number(priceRange.min)) return false;
+          if (priceRange.max && price > Number(priceRange.max)) return false;
+          return true;
+        });
+
+        setProducts(productsFiltered);
 
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -160,7 +232,7 @@ export default function Catalog() {
     }
 
     fetchProducts();
-  }, [selectedCategory, categoriesLoading, categories, page, searchQuery]);
+  }, [selectedCategory, categoriesLoading, categories, page, searchQuery, selectedSizes, selectedColors, selectedBrands, priceRange]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -175,14 +247,35 @@ export default function Catalog() {
         {/* Бічна панель — десктоп */}
         <aside className="hidden lg:block w-64 flex-shrink-0">
           <FilterSidebar
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={(slug) => {
-              setSelectedCategory(slug || null);
-              setPage(0);
+            sizes={filterSizes}
+            colors={filterColors}
+            brands={filterBrands}
+            selectedSizes={selectedSizes}
+            selectedColors={selectedColors}
+            selectedBrands={selectedBrands}
+            priceRange={priceRange}
+            onSizeToggle={(id) => setSelectedSizes(prev => {
+              const next = new Set(prev);
+              next.has(id) ? next.delete(id) : next.add(id);
+              return next;
+            })}
+            onColorToggle={(id) => setSelectedColors(prev => {
+              const next = new Set(prev);
+              next.has(id) ? next.delete(id) : next.add(id);
+              return next;
+            })}
+            onBrandToggle={(id) => setSelectedBrands(prev => {
+              const next = new Set(prev);
+              next.has(id) ? next.delete(id) : next.add(id);
+              return next;
+            })}
+            onPriceChange={setPriceRange}
+            onReset={() => {
+              setSelectedSizes(new Set());
+              setSelectedColors(new Set());
+              setSelectedBrands(new Set());
+              setPriceRange({ min: '', max: '' });
             }}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
           />
         </aside>
 
@@ -355,15 +448,35 @@ export default function Catalog() {
               </button>
             </div>
             <FilterSidebar
-              categories={categories}
-              selectedCategory={selectedCategory}
-              onSelectCategory={(slug) => {
-                setSelectedCategory(slug || null);
-                setPage(0);
-                setMobileFiltersOpen(false);
+              sizes={filterSizes}
+              colors={filterColors}
+              brands={filterBrands}
+              selectedSizes={selectedSizes}
+              selectedColors={selectedColors}
+              selectedBrands={selectedBrands}
+              priceRange={priceRange}
+              onSizeToggle={(id) => setSelectedSizes(prev => {
+                const next = new Set(prev);
+                next.has(id) ? next.delete(id) : next.add(id);
+                return next;
+              })}
+              onColorToggle={(id) => setSelectedColors(prev => {
+                const next = new Set(prev);
+                next.has(id) ? next.delete(id) : next.add(id);
+                return next;
+              })}
+              onBrandToggle={(id) => setSelectedBrands(prev => {
+                const next = new Set(prev);
+                next.has(id) ? next.delete(id) : next.add(id);
+                return next;
+              })}
+              onPriceChange={setPriceRange}
+              onReset={() => {
+                setSelectedSizes(new Set());
+                setSelectedColors(new Set());
+                setSelectedBrands(new Set());
+                setPriceRange({ min: '', max: '' });
               }}
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
             />
           </div>
         </div>

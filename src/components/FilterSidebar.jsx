@@ -1,169 +1,191 @@
 import { useState } from 'react';
-import { Search, X } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
+
+function FilterSection({ title, children, defaultOpen = true }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-gray-100 py-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex justify-between items-center text-sm font-semibold text-gray-800 mb-3"
+      >
+        {title}
+        <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && children}
+    </div>
+  );
+}
 
 export default function FilterSidebar({
-  categories, selectedCategory, onSelectCategory,
-  searchQuery, onSearchChange
+  sizes, colors, brands,
+  selectedSizes, selectedColors, selectedBrands,
+  priceRange,
+  onSizeToggle, onColorToggle, onBrandToggle,
+  onPriceChange, onReset
 }) {
-  const level1 = categories.filter(c => !c.parent_id);
-  const level2 = categories.filter(c => 
-    level1.some(l => l.id === c.parent_id)
-  );
-  const level3 = categories.filter(c => 
-    level2.some(l => l.id === c.parent_id)
-  );
+  const hasFilters = selectedSizes.size > 0 || selectedColors.size > 0 || 
+                     selectedBrands.size > 0 || priceRange.min || priceRange.max;
 
-  // Визначаємо активний таб по обраній категорії
-  const getActiveTab = () => {
-    if (!selectedCategory) return null;
-    const cat = categories.find(c => c.slug === selectedCategory);
-    if (!cat) return null;
-    if (!cat.parent_id) return cat.slug; // це сам таб
-    const parent = categories.find(c => c.id === cat.parent_id);
-    if (!parent?.parent_id) return parent?.slug; // рівень 2 → таб
-    const grandparent = categories.find(c => c.id === parent?.parent_id);
-    return grandparent?.slug; // рівень 3 → таб
-  };
+  // Групуємо розміри по типу
+  const sizeGroups = [
+    { label: 'Стандартні', type: 'standard' },
+    { label: 'Комбіновані', type: 'combined' },
+    { label: 'Числові', type: 'numeric' },
+    { label: 'Бюстгальтерні', type: 'bra' },
+    { label: 'Дитячі', type: 'kids' },
+  ].map(g => ({
+    ...g,
+    items: sizes.filter(s => s.size_type === g.type)
+  })).filter(g => g.items.length > 0);
 
-  const [activeTab, setActiveTab] = useState(getActiveTab() || level1[0]?.slug);
-
-  const activeTabObj = level1.find(c => c.slug === activeTab);
-  const typesForTab = level2.filter(c => c.parent_id === activeTabObj?.id);
-
-  // Який тип розгорнутий
-  const getExpandedType = () => {
-    if (!selectedCategory) return null;
-    const cat = categories.find(c => c.slug === selectedCategory);
-    if (!cat) return null;
-    if (level3.some(l => l.id === cat.id)) {
-      return categories.find(c => c.id === cat.parent_id)?.slug;
-    }
-    if (level2.some(l => l.id === cat.id)) return cat.slug;
-    return null;
-  };
-
-  const [expandedType, setExpandedType] = useState(getExpandedType());
+  const [expandedSizeGroup, setExpandedSizeGroup] = useState('standard');
 
   return (
-    <div className="space-y-5">
-      {/* Пошук */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => onSearchChange(e.target.value)}
-          placeholder="Пошук товарів..."
-          className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400"
-        />
-        {searchQuery && (
-          <button onClick={() => onSearchChange('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-            <X className="h-3 w-3" />
+    <div>
+      {/* Заголовок + скинути */}
+      <div className="flex justify-between items-center mb-2 py-2">
+        <h3 className="font-semibold text-gray-900">Фільтри</h3>
+        {hasFilters && (
+          <button
+            onClick={onReset}
+            className="text-xs text-gray-400 hover:text-gray-600 underline"
+          >
+            Скинути все
           </button>
         )}
       </div>
 
-      {/* Таби статі */}
-      <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-        {level1.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              setActiveTab(tab.slug);
-              setExpandedType(null);
-              onSelectCategory(tab.slug);
-            }}
-            className={`flex-1 py-2 text-xs font-medium transition-colors ${
-              activeTab === tab.slug
-                ? 'bg-gray-800 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-50'
-            }`}
-          >
-            {tab.name_uk}
-          </button>
-        ))}
-      </div>
+      {/* ЦІНА */}
+      <FilterSection title="Ціна, грн">
+        <div className="flex gap-2 items-center">
+          <input
+            type="number"
+            placeholder="від"
+            value={priceRange.min}
+            onChange={e => onPriceChange({ ...priceRange, min: e.target.value })}
+            className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400"
+          />
+          <span className="text-gray-400 text-sm">—</span>
+          <input
+            type="number"
+            placeholder="до"
+            value={priceRange.max}
+            onChange={e => onPriceChange({ ...priceRange, max: e.target.value })}
+            className="w-full border border-gray-200 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-gray-400"
+          />
+        </div>
+      </FilterSection>
 
-      {/* Кнопка "Всі" для поточного табу */}
-      <button
-        onClick={() => {
-          setExpandedType(null);
-          onSelectCategory(activeTab);
-        }}
-        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-          selectedCategory === activeTab
-            ? 'bg-gray-100 font-medium text-gray-900'
-            : 'text-gray-600 hover:bg-gray-50'
-        }`}
-      >
-        Всі {activeTabObj?.name_uk.toLowerCase()}
-      </button>
-
-      {/* Типи і підтипи */}
-      <div className="space-y-0.5">
-        {typesForTab.map(type => {
-          const subtypes = level3.filter(c => c.parent_id === type.id);
-          const isExpanded = expandedType === type.slug;
-          const isTypeSelected = selectedCategory === type.slug;
-
-          return (
-            <div key={type.id}>
+      {/* РОЗМІРИ */}
+      {sizes.length > 0 && (
+        <FilterSection title="Розмір">
+          {/* Таби типів розмірів */}
+          <div className="flex flex-wrap gap-1 mb-3">
+            {sizeGroups.map(g => (
               <button
-                onClick={() => {
-                  if (isExpanded) {
-                    setExpandedType(null);
-                  } else {
-                    setExpandedType(type.slug);
-                  }
-                  onSelectCategory(type.slug);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex justify-between items-center ${
-                  isTypeSelected || isExpanded
-                    ? 'text-gray-900 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50'
+                key={g.type}
+                onClick={() => setExpandedSizeGroup(g.type)}
+                className={`px-2 py-1 rounded text-xs transition-colors ${
+                  expandedSizeGroup === g.type
+                    ? 'bg-gray-800 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {type.name_uk}
-                {subtypes.length > 0 && (
-                  <span className={`text-gray-400 text-xs transition-transform duration-200 ${
-                    isExpanded ? 'rotate-90' : ''
-                  }`}>›</span>
+                {g.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Кнопки розмірів */}
+          <div className="flex flex-wrap gap-1.5">
+            {sizeGroups
+              .find(g => g.type === expandedSizeGroup)
+              ?.items.map(size => (
+                <button
+                  key={size.id}
+                  onClick={() => onSizeToggle(size.id)}
+                  className={`px-3 py-1.5 border rounded text-xs font-medium transition-colors ${
+                    selectedSizes.has(size.id)
+                      ? 'bg-gray-800 text-white border-gray-800'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                  }`}
+                >
+                  {size.value}
+                </button>
+              ))}
+          </div>
+        </FilterSection>
+      )}
+
+      {/* КОЛЬОРИ */}
+      {colors.length > 0 && (
+        <FilterSection title="Колір">
+          <div className="flex flex-wrap gap-2">
+            {colors.map(color => (
+              <button
+                key={color.id}
+                onClick={() => onColorToggle(color.id)}
+                title={color.name_uk}
+                className={`relative w-7 h-7 rounded-full border-2 transition-all ${
+                  selectedColors.has(color.id)
+                    ? 'border-gray-800 scale-110'
+                    : 'border-transparent hover:border-gray-300'
+                }`}
+                style={{ backgroundColor: color.hex || '#cccccc' }}
+              >
+                {/* Білий колір — додаємо рамку щоб було видно */}
+                {color.hex === '#ffffff' && (
+                  <span className="absolute inset-0 rounded-full border border-gray-200" />
+                )}
+                {selectedColors.has(color.id) && (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <span className={`text-xs font-bold ${
+                      ['#ffffff', '#fffff0', '#fdfdf0'].includes(color.hex) 
+                        ? 'text-gray-800' : 'text-white'
+                    }`}>✓</span>
+                  </span>
                 )}
               </button>
-
-              {/* Підтипи */}
-              {isExpanded && subtypes.length > 0 && (
-                <div className="ml-3 mt-0.5 space-y-0.5 border-l border-gray-100 pl-3">
-                  <button
-                    onClick={() => onSelectCategory(type.slug)}
-                    className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                      selectedCategory === type.slug
-                        ? 'text-gray-900 font-medium'
-                        : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    Всі {type.name_uk.toLowerCase()}
-                  </button>
-                  {subtypes.map(sub => (
-                    <button
-                      key={sub.id}
-                      onClick={() => onSelectCategory(sub.slug)}
-                      className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${
-                        selectedCategory === sub.slug
-                          ? 'bg-[var(--color-primary-light)] text-[var(--color-text)] font-medium px-2'
-                          : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                    >
-                      {sub.name_uk}
-                    </button>
-                  ))}
-                </div>
-              )}
+            ))}
+          </div>
+          {/* Назви обраних кольорів */}
+          {selectedColors.size > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {colors.filter(c => selectedColors.has(c.id)).map(c => (
+                <span key={c.id} className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                  {c.name_uk}
+                </span>
+              ))}
             </div>
-          );
-        })}
-      </div>
+          )}
+        </FilterSection>
+      )}
+
+      {/* БРЕНДИ */}
+      {brands.length > 0 && (
+        <FilterSection title="Бренд" defaultOpen={false}>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {brands.map(brand => (
+              <label key={brand.id} className="flex items-center gap-2 cursor-pointer group">
+                <input
+                  type="checkbox"
+                  checked={selectedBrands.has(brand.id)}
+                  onChange={() => onBrandToggle(brand.id)}
+                  className="rounded border-gray-300 text-gray-800 focus:ring-gray-500"
+                />
+                <span className={`text-sm transition-colors ${
+                  selectedBrands.has(brand.id) 
+                    ? 'text-gray-900 font-medium' 
+                    : 'text-gray-600 group-hover:text-gray-900'
+                }`}>
+                  {brand.name}
+                </span>
+              </label>
+            ))}
+          </div>
+        </FilterSection>
+      )}
     </div>
   );
 }

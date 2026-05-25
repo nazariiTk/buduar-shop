@@ -82,6 +82,8 @@ export default function ProductPage() {
   }, [selectedColor]);
 
   const handleAddToCart = () => {
+    const selectedVariants = variants.filter(v => v.color === selectedColor && v.size === selectedSize);
+    const selectedVariant = selectedVariants[0];
     if (!product || !selectedVariant) return;
     
     const itemToAdd = {
@@ -122,13 +124,16 @@ export default function ProductPage() {
   const uniqueColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
   const availableSizes = variants.filter(v => v.color === selectedColor);
   
-  // Find selected variant based on color and size
-  const selectedVariant = variants.find(v => v.color === selectedColor && v.size === selectedSize);
+  // Find all variants matching selected color and size
+  const selectedVariants = variants.filter(v => v.color === selectedColor && v.size === selectedSize);
+  const selectedVariant = selectedVariants[0]; // For adding to cart
   
-  // Get all availability info for selected variant or just aggregate if no variant selected
-  const availability = selectedVariant 
-    ? (Array.isArray(selectedVariant.product_view) ? selectedVariant.product_view : [selectedVariant.product_view]).filter(Boolean)
-    : [];
+  // Gather all availability info across matching variants
+  const availability = selectedVariants.flatMap(v => 
+    (Array.isArray(v.product_view) ? v.product_view : [v.product_view]).filter(Boolean)
+  );
+
+  const totalAvailabilityQty = availability.reduce((sum, view) => sum + (parseFloat(view?.quantity) || 0), 0);
 
   const displayPrice = selectedVariant?.product_view?.[0]?.price 
     || variants[0]?.product_view?.[0]?.price 
@@ -211,15 +216,28 @@ export default function ProductPage() {
             <div className="mb-8">
               <h3 className="font-medium mb-3">Розмір: <span className="font-normal text-[var(--color-text-light)]">{selectedSize || 'Оберіть розмір'}</span></h3>
               <div className="flex flex-wrap gap-3">
-                {availableSizes.map(variant => {
-                  // Total quantity for this variant across all shops
+                {Object.values(availableSizes.reduce((acc, variant) => {
+                  const key = variant.size;
                   const views = Array.isArray(variant.product_view) ? variant.product_view : [variant.product_view];
-                  const totalQty = views.reduce((sum, view) => sum + (view?.quantity || 0), 0);
-                  const isOutOfStock = totalQty === 0;
+                  const qty = views.reduce((sum, view) => sum + (parseFloat(view?.quantity) || 0), 0);
+                  
+                  if (!acc[key]) {
+                    acc[key] = { 
+                      ...variant, 
+                      total_quantity: qty, 
+                      locations: views.map(v => ({ shop: v?.shop_name, qty: parseFloat(v?.quantity) || 0 }))
+                    };
+                  } else {
+                    acc[key].total_quantity += qty;
+                    acc[key].locations.push(...views.map(v => ({ shop: v?.shop_name, qty: parseFloat(v?.quantity) || 0 })));
+                  }
+                  return acc;
+                }, {})).map(variant => {
+                  const isOutOfStock = variant.total_quantity === 0;
 
                   return (
                     <button
-                      key={variant.id}
+                      key={variant.size}
                       onClick={() => setSelectedSize(variant.size)}
                       className={`px-4 py-2 border text-sm transition-all ${
                         selectedSize === variant.size 
@@ -241,8 +259,8 @@ export default function ProductPage() {
           {selectedSize && (
             <div className="mb-8 bg-[var(--color-primary-light)] bg-opacity-30 p-4 rounded-md flex justify-between items-center">
               <span className="font-medium text-sm uppercase tracking-wider">Наявність:</span>
-              <span className={availability.reduce((sum, view) => sum + (view?.quantity || 0), 0) > 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
-                {availability.reduce((sum, view) => sum + (view?.quantity || 0), 0) > 0 ? 'Є в наявності ✓' : 'Немає в наявності ✗'}
+              <span className={totalAvailabilityQty > 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+                {totalAvailabilityQty > 0 ? 'Є в наявності ✓' : 'Немає в наявності ✗'}
               </span>
             </div>
           )}
