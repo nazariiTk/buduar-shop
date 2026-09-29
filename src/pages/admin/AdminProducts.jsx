@@ -396,7 +396,7 @@ ${variantsText}
 
       // 3. Save atomically via RPC
       const { data, error } = await supabase.rpc('save_parsed_product', {
-        p_product_id: targetProductId,
+        p_product_id: saveMode === 'existing' ? parseInt(targetProductId, 10) : null,
         p_product_data: productData,
         p_photos: uploadedPhotos.length > 0 ? uploadedPhotos : null,
         p_variants: variants,
