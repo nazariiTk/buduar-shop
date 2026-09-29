@@ -273,40 +273,28 @@ ${variantsText}
   "confidence": 0.95
 }`;
 
-      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY || ''}`
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          messages: [{ role: 'user', content: promptText }],
-          temperature: 0.1,
-          response_format: { type: 'json_object' }
-        })
+      const { data, error, response: supResponse } = await supabase.functions.invoke('parse-product', {
+        body: { promptText }
       });
 
-      // Read headers for rate limiting
+      if (error) {
+        throw new Error(error.message || 'Помилка при виконанні серверної функції parse-product');
+      }
+
+      if (data?.error) {
+        throw new Error(data.error.error?.message || data.error || 'Помилка API');
+      }
+
       const updateAiMetrics = useAiMetricsStore.getState().updateMetrics;
-      updateAiMetrics({
-        requestsLimit: response.headers.get('x-ratelimit-limit-requests'),
-        requestsRemaining: response.headers.get('x-ratelimit-remaining-requests'),
-        requestsReset: response.headers.get('x-ratelimit-reset-requests'),
-        tokensLimit: response.headers.get('x-ratelimit-limit-tokens'),
-        tokensRemaining: response.headers.get('x-ratelimit-remaining-tokens'),
-        tokensReset: response.headers.get('x-ratelimit-reset-tokens'),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.error?.message ||
-          data.error ||
-          data.detail ||
-          `HTTP помилка: ${response.status} ${response.statusText}`
-        );
+      if (supResponse?.headers) {
+        updateAiMetrics({
+          requestsLimit: supResponse.headers.get('x-ratelimit-limit-requests'),
+          requestsRemaining: supResponse.headers.get('x-ratelimit-remaining-requests'),
+          requestsReset: supResponse.headers.get('x-ratelimit-reset-requests'),
+          tokensLimit: supResponse.headers.get('x-ratelimit-limit-tokens'),
+          tokensRemaining: supResponse.headers.get('x-ratelimit-remaining-tokens'),
+          tokensReset: supResponse.headers.get('x-ratelimit-reset-tokens'),
+        });
       }
 
       if (!data.choices || data.choices.length === 0) {

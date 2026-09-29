@@ -41,17 +41,73 @@ serve(async (req) => {
       )
     }
 
-    // Використовуємо service_role для запису
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    // Рахуємо суму на сервері (не довіряємо фронтенду)
-    const subtotal = body.items.reduce(
-      (sum: number, item: any) => sum + (Number(item.price) * Number(item.quantity)), 
-      0
-    )
+    // Валідація цін та наявності зі сторони сервера
+    const articleIds = body.items.map((i: any) => i.id)
+    
+    const { data: dbItems, error: dbError } = await supabase
+      .from('product_view')
+      .select('article_id, price, quantity')
+      .in('article_id', articleIds)
+
+    if (dbError) throw dbError
+
+    // Агрегуємо дані бази
+    const stockMap = new Map<number, { price: number, total_quantity: number }>()
+    if (dbItems) {
+      for (const row of dbItems) {
+        const id = row.article_id
+        if (!stockMap.has(id)) {
+          stockMap.set(id, { price: Number(row.price), total_quantity: 0 })
+        }
+        const current = stockMap.get(id)!
+        current.total_quantity += (Number(row.quantity) || 0)
+      }
+    }
+
+    // Перевіряємо кожен товар у кошику і рахуємо суму
+    let subtotal = 0
+    const validatedOrderItems = []
+
+    for (const item of body.items) {
+      const articleId = item.id
+      const reqQty = Number(item.quantity)
+      
+      const dbInfo = stockMap.get(articleId)
+
+      if (!dbInfo) {
+        return new Response(
+          JSON.stringify({ error: `Товар "${item.name}" не знайдено в базі.` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (dbInfo.total_quantity < reqQty) {
+        return new Response(
+          JSON.stringify({ error: `Недостатньо на складі: "${item.name}". Доступно: ${dbInfo.total_quantity}` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const itemTotal = dbInfo.price * reqQty
+      subtotal += itemTotal
+
+      validatedOrderItems.push({
+        article_id:   articleId,
+        product_name: item.name,
+        product_slug: item.slug || null,
+        color:        item.color || null,
+        size:         item.size || null,
+        image_url:    item.image || null,
+        price:        dbInfo.price, // Беремо ціну з БД!
+        quantity:     reqQty,
+        total:        itemTotal,
+      })
+    }
 
     // Зберігаємо замовлення
     const { data: order, error: orderError } = await supabase
@@ -81,28 +137,16 @@ serve(async (req) => {
 
     if (orderError) throw orderError
 
-    // Зберігаємо товари
-    const orderItems = body.items.map((item: any) => ({
-      order_id:     order.id,
-      article_id:   item.id || null,
-      group_id:     item.group_id || null,
-      product_name: item.name,
-      product_slug: item.slug || null,
-      color:        item.color || null,
-      size:         item.size || null,
-      image_url:    item.image || null,
-      price:        Number(item.price),
-      quantity:     Number(item.quantity),
-      total:        Number(item.price) * Number(item.quantity),
-    }))
+    // Прив'язуємо ID замовлення
+    const itemsToInsert = validatedOrderItems.map(i => ({ ...i, order_id: order.id }))
 
     const { error: itemsError } = await supabase
       .from('order_items')
-      .insert(orderItems)
+      .insert(itemsToInsert)
 
     if (itemsError) throw itemsError
 
-    // Відправляємо email (викликаємо існуючу функцію)
+    // Відправляємо email
     await supabase.functions.invoke('send-order-email', {
       body: { order_id: order.id }
     })

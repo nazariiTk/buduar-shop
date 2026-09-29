@@ -61,11 +61,8 @@ export default function Checkout() {
     if (query.length < 2) { setCities([]); return; }
     setCityLoading(true);
     try {
-      const res = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey: import.meta.env.VITE_NP_API_KEY,
+      const { data, error } = await supabase.functions.invoke('nova-poshta', {
+        body: {
           modelName: 'Address',
           calledMethod: 'searchSettlements',
           methodProperties: {
@@ -73,9 +70,9 @@ export default function Checkout() {
             Limit: 7,
             Language: 'UA'
           }
-        })
+        }
       });
-      const data = await res.json();
+      if (error) throw error;
       const addresses = data?.data?.[0]?.Addresses || [];
       setCities(addresses);
     } catch (err) {
@@ -88,11 +85,8 @@ export default function Checkout() {
   async function loadBranches(cityRef, branchFilter = '') {
     setBranchLoading(true);
     try {
-      const res = await fetch('https://api.novaposhta.ua/v2.0/json/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          apiKey: import.meta.env.VITE_NP_API_KEY,
+      const { data, error } = await supabase.functions.invoke('nova-poshta', {
+        body: {
           modelName: 'AddressGeneral',
           calledMethod: 'getWarehouses',
           methodProperties: {
@@ -101,9 +95,9 @@ export default function Checkout() {
             Limit: 20,
             Language: 'UA'
           }
-        })
+        }
       });
-      const data = await res.json();
+      if (error) throw error;
       setBranches(data?.data || []);
     } catch (err) {
       console.error(err);

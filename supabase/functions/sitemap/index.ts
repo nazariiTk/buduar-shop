@@ -42,8 +42,9 @@ serve(async (req) => {
     // Add products
     if (products) {
       for (const product of products) {
+        const encodedSlug = encodeURIComponent(product.slug);
         xml += `  <url>
-    <loc>${SITE_URL}/product/${product.slug}</loc>
+    <loc>${SITE_URL}/product/${encodedSlug}</loc>
     <lastmod>${new Date(product.created_at || Date.now()).toISOString()}</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
