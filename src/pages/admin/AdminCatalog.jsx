@@ -139,7 +139,9 @@ export default function AdminCatalog() {
       const file = files[i];
       const isFirstNew = i === 0 && !hasMain && photoGroup.product_photos.length === 0;
       
-      const url = await uploadProductImage(file);
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '');
+      const path = `${photoGroup.id}/${Date.now()}_${safeName}`;
+      const url = await uploadProductImage(file, path);
       if (url) {
         const { data } = await supabase
           .from('product_photos')

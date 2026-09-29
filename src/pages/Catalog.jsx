@@ -162,6 +162,32 @@ export default function Catalog() {
           query = query.in('brand_id', [...selectedBrands]);
         }
 
+        // Ціни — через product_view та product_skus
+        if (priceRange.min || priceRange.max) {
+          let priceQuery = supabase.from('product_view').select('article_id');
+          if (priceRange.min) priceQuery = priceQuery.gte('price', Number(priceRange.min));
+          if (priceRange.max) priceQuery = priceQuery.lte('price', Number(priceRange.max));
+          
+          const { data: priceData } = await priceQuery;
+          const validArticleIds = [...new Set(priceData?.map(p => p.article_id) || [])];
+          
+          if (validArticleIds.length > 0) {
+            const { data: skuData } = await supabase
+              .from('product_skus')
+              .select('product_id')
+              .in('article_id', validArticleIds);
+              
+            const validProductIds = [...new Set(skuData?.map(s => s.product_id) || [])];
+            if (validProductIds.length > 0) {
+              query = query.in('id', validProductIds);
+            } else {
+              setProducts([]); setTotalCount(0); setLoading(false); return;
+            }
+          } else {
+             setProducts([]); setTotalCount(0); setLoading(false); return;
+          }
+        }
+
         const { data: catalogData, error, count } = await query;
         if (error) throw error;
         if (count !== null) setTotalCount(count);
@@ -223,14 +249,7 @@ export default function Catalog() {
           };
         });
 
-        const productsFiltered = productsWithPrice.filter(p => {
-          const price = p.price;
-          if (priceRange.min && price < Number(priceRange.min)) return false;
-          if (priceRange.max && price > Number(priceRange.max)) return false;
-          return true;
-        });
-
-        setProducts(productsFiltered);
+        setProducts(productsWithPrice);
 
       } catch (err) {
         console.error("Error fetching products:", err);
@@ -352,18 +371,17 @@ export default function Catalog() {
                   Спробуйте інший запит або перегляньте категорії
                 </p>
                 <div className="flex flex-wrap justify-center gap-3 max-w-lg mx-auto">
-                  {topLevel.map(cat => (
+                  {categories.filter(c => !c.parent_id).map(cat => (
                     <button
                       key={cat.id}
                       onClick={() => {
                         setSearchQuery('');
-                        setActiveParent(cat.slug);
                         setSelectedCategory(cat.slug);
                         setPage(0);
                       }}
                       className="px-4 py-2 border border-gray-200 rounded-full text-sm hover:border-gray-400 bg-white transition-colors"
                     >
-                      {cat.name_uk}
+                      {cat.name}
                     </button>
                   ))}
                   <button

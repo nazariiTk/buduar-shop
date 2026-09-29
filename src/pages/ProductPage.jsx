@@ -119,8 +119,13 @@ export default function ProductPage() {
     );
   }
 
-  if (!product) {
-    return <div className="text-center py-20 text-2xl font-serif">Товар не знайдено</div>;
+  if (!product || product.is_active === false) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+        <h1 className="text-3xl font-serif text-[var(--color-text)] mb-4">Товар недоступний</h1>
+        <p className="text-[var(--color-text-light)]">Можливо, він був знятий з продажу або посилання застаріло.</p>
+      </div>
+    );
   }
 
   const uniqueColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
@@ -300,17 +305,19 @@ export default function ProductPage() {
 
           {/* Add to cart */}
           <button 
-            disabled={!selectedSize || !selectedVariant}
+            disabled={!selectedSize || !selectedVariant || totalAvailabilityQty <= 0}
             onClick={handleAddToCart}
             className={`w-full py-4 text-sm font-medium tracking-widest uppercase transition-colors ${
-              !selectedSize 
-                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                : added 
-                  ? 'bg-green-600 text-white' 
-                  : 'bg-[var(--color-text)] text-[var(--color-background)] hover:bg-opacity-90 shadow-sm'
+              totalAvailabilityQty <= 0
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : !selectedSize 
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : added 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-[var(--color-text)] text-[var(--color-background)] hover:bg-opacity-90 shadow-sm'
             }`}
           >
-            {added ? '✓ Додано' : 'Додати в кошик'}
+            {totalAvailabilityQty <= 0 ? 'Немає в наявності' : added ? '✓ Додано' : 'Додати в кошик'}
           </button>
         </div>
       </div>
