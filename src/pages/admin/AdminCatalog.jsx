@@ -650,28 +650,32 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       .eq('id', variant.id);
     
     if (!error) {
-      const updated = variants.filter(v => v.id !== variant.id);
+      let updated = variants.filter(v => v.id !== variant.id);
+      
+      if (variant.is_main && updated.length > 0) {
+        const newMainId = updated[0].id;
+        await supabase.from('product_skus').update({ is_main: true }).eq('id', newMainId);
+        updated = updated.map(v => v.id === newMainId ? { ...v, is_main: true } : v);
+      }
+      
       setVariants(updated);
       onUpdate({ ...group, product_skus: updated });
     }
   };
 
   const handleSetMain = async (variant) => {
-    // Скидаємо всі is_main для групи
-    await supabase
-      .from('product_skus')
-      .update({ is_main: false })
-      .eq('product_id', group.id);
-    
-    // Встановлюємо новий main
-    await supabase
-      .from('product_skus')
-      .update({ is_main: true })
-      .eq('id', variant.id);
-    
-    const updated = variants.map(v => ({ ...v, is_main: v.id === variant.id }));
-    setVariants(updated);
-    onUpdate({ ...group, product_skus: updated });
+    try {
+      // Виконуємо послідовно: спочатку знімаємо старий main
+      await supabase.from('product_skus').update({ is_main: false }).eq('product_id', group.id);
+      await supabase.from('product_skus').update({ is_main: true }).eq('id', variant.id);
+      
+      const updated = variants.map(v => ({ ...v, is_main: v.id === variant.id }));
+      setVariants(updated);
+      onUpdate({ ...group, product_skus: updated });
+    } catch (err) {
+      console.error(err);
+      alert('Помилка зміни головного артикулу');
+    }
   };
 
   const handleMove = async (variant, targetGroupId) => {
@@ -681,7 +685,14 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       .eq('id', variant.id);
     
     if (!error) {
-      const updated = variants.filter(v => v.id !== variant.id);
+      let updated = variants.filter(v => v.id !== variant.id);
+      
+      if (variant.is_main && updated.length > 0) {
+        const newMainId = updated[0].id;
+        await supabase.from('product_skus').update({ is_main: true }).eq('id', newMainId);
+        updated = updated.map(v => v.id === newMainId ? { ...v, is_main: true } : v);
+      }
+      
       setVariants(updated);
       onUpdate({ ...group, product_skus: updated });
       setMoving(null);

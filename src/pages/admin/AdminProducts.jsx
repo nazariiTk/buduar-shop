@@ -99,52 +99,26 @@ export default function AdminProducts() {
   async function fetchArticles() {
     setLoading(true);
     try {
-      // 1. Fetch already linked article IDs
-      const { data: variants } = await supabase.from('product_skus').select('article_id');
-      const linkedIds = variants?.map(v => v.article_id).filter(Boolean) || [];
+      // Fetch unlinked articles using RPC
+      const { data, count, error } = await supabase.rpc('get_unlinked_articles', {
+        p_limit: 50,
+        p_offset: page * 50,
+        p_search: debouncedQuery || '',
+        p_in_stock: inStockOnly
+      }, { count: 'exact' });
 
-      // 2. Fetch unlinked articles
-      // 2. Fetch unlinked articles
-      let query = supabase
-        .from('product_view')
-        .select('article_id, code, text_name, full_name, barcode, price, quantity, shop_name', { count: 'exact' })
-        .eq('is_deleted', false)
-        .range(page * 50, page * 50 + 49);
-
-      if (inStockOnly) {
-        query = query.gt('quantity', 0);
-      }
-
-      if (linkedIds.length > 0) {
-        query = query.not('article_id', 'in', `(${linkedIds.join(',')})`);
-      }
-
-      if (debouncedQuery) {
-        const safeQuery = debouncedQuery.replace(/[,%]/g, '');
-        query = query.or(`code.ilike.%${safeQuery}%,text_name.ilike.%${safeQuery}%,barcode.ilike.%${safeQuery}%`);
-      }
-
-      const { data, count, error } = await query;
       if (error) throw error;
 
-      // Group duplicates and calculate total quantity
-      const groupedProducts = (data || []).reduce((acc, curr) => {
-        const qty = Number(curr.quantity) || 0;
-        if (!acc[curr.code]) {
-          acc[curr.code] = {
-            ...curr,
-            id: curr.article_id, // Map article_id back to id for UI compatibility
-            total_quantity: qty,
-            locations: [{ shop: curr.shop_name, qty: qty }]
-          };
-        } else {
-          acc[curr.code].total_quantity += qty;
-          acc[curr.code].locations.push({ shop: curr.shop_name, qty: qty });
-        }
-        return acc;
-      }, {});
+      const formatted = (data || []).map(row => ({
+        id: row.code,
+        code: row.code,
+        text_name: row.text_name,
+        total_quantity: row.total_quantity,
+        articles: row.articles,
+        locations: row.articles.map(a => ({ shop: a.shop_name, qty: a.quantity }))
+      }));
 
-      setArticles(Object.values(groupedProducts));
+      setArticles(formatted);
       if (count !== null) setTotalCount(count);
     } catch (err) {
       console.error('Error fetching articles:', err);
@@ -225,6 +199,7 @@ export default function AdminProducts() {
     setIsParsing(true);
     const article = parsingQueue[0];
     try {
+      // Отримуємо всі варіанти цього коду
       const { data: allArticles, error: fetchErr } = await supabase
         .from('product_view')
         .select('*')
@@ -232,13 +207,30 @@ export default function AdminProducts() {
         
       if (fetchErr) throw fetchErr;
 
+      // Отримуємо вже прив'язані артикули, щоб виключити їх
+      const articleIds = allArticles?.map(a => a.article_id) || [];
+      const { data: linkedSkus } = await supabase
+        .from('product_skus')
+        .select('article_id')
+        .in('article_id', articleIds);
+        
+      const linkedSet = new Set(linkedSkus?.map(s => s.article_id) || []);
+
       const uniqueVariantsMap = new Map();
       (allArticles || []).forEach(a => {
-        if (!uniqueVariantsMap.has(a.article_id)) {
+        if (!linkedSet.has(a.article_id) && !uniqueVariantsMap.has(a.article_id)) {
           uniqueVariantsMap.set(a.article_id, a);
         }
       });
       const uniqueVariants = Array.from(uniqueVariantsMap.values());
+      
+      if (uniqueVariants.length === 0) {
+        alert('Всі варіанти для цього коду вже згруповані!');
+        setArticles(prev => prev.filter(a => a.id !== article.id));
+        setParsingQueue(prev => prev.slice(1));
+        setIsParsing(false);
+        return;
+      }
       
       const variantsText = uniqueVariants.map(v => `- id: ${v.article_id}, назва: ${v.text_name}`).join('\\n');
       const availableColors = colors.map(c => c.name).join(', ');
@@ -340,98 +332,78 @@ ${variantsText}
     try {
       const article = currentParsed.article;
       let targetProductId = selectedProductId;
-
+      
+      let productData = null;
+      
       if (saveMode === 'new') {
-        // 1. Create group
         const slug = saveData.base_name.toLowerCase()
           .replace(/[^a-zа-яіїєґ0-9\s]/gi, '')
           .trim()
           .replace(/\s+/g, '-');
-
-        const { data: group, error: productErr } = await supabase
-          .from('products')
-          .insert({
-            name: saveData.base_name,
-            slug: slug + '-' + Date.now(),
-            category_id: saveData.category_id || null,
-            description: saveData.description || '',
-            keywords: saveData.keywords || null,
-            base_article_code: saveData.base_article_code || null,
-            brand_id: saveData.brand_id || null,
-            gender: saveData.gender || null
-          })
-          .select('id')
-          .single();
-
-        if (productErr) throw productErr;
-        targetProductId = group.id;
-
-        // 2. Upload photos if any
-        if (selectedPhotos && selectedPhotos.length > 0) {
-          try {
-            const photoPromises = selectedPhotos.map(async (file, index) => {
-              const ext = file.name.split('.').pop();
-              const path = `${targetProductId}/${Date.now()}_${index}.${ext}`;
-              const url = await uploadProductImage(file, path);
-              return {
-                product_id: targetProductId,
-                url,
-                sort_order: index,
-                is_main: index === 0  // ← перше фото головне
-              };
-            });
-
-            const uploadedPhotos = await Promise.all(photoPromises);
-
-            // 3. Save photos to DB
-            if (uploadedPhotos.length > 0) {
-              const { error: photoErr } = await supabase
-                .from('product_photos')
-                .insert(uploadedPhotos);
-
-              if (photoErr) console.error('Error saving photo records:', photoErr);
-            }
-          } catch (photoUploadError) {
-            console.error('Error uploading photos:', photoUploadError);
-            alert('Групу створено, але не всі фото вдалося завантажити. Ви можете додати їх пізніше.');
-          }
-        }
+          
+        targetProductId = crypto.randomUUID(); // генеруємо ID заздалегідь для збереження фото
+        
+        productData = {
+          name: saveData.base_name,
+          slug: slug + '-' + Date.now(),
+          category_id: saveData.category_id || null,
+          description: saveData.description || '',
+          keywords: saveData.keywords || null,
+          base_article_code: saveData.base_article_code || null,
+          brand_id: saveData.brand_id || null,
+          gender: saveData.gender || null,
+          is_active: true
+        };
       } else {
-        // Existing group
         if (!targetProductId) throw new Error('Оберіть групу');
       }
 
-      // 4. Create variants
-      let variantInserts = [];
+      // 1. Upload photos to Storage
+      let uploadedPhotos = [];
+      if (selectedPhotos && selectedPhotos.length > 0) {
+        const photoPromises = selectedPhotos.map(async (file, index) => {
+          const ext = file.name.split('.').pop();
+          const path = `${targetProductId}/${Date.now()}_${index}.${ext}`;
+          const url = await uploadProductImage(file, path);
+          return {
+            url,
+            sort_order: index,
+            is_main: index === 0
+          };
+        });
+        uploadedPhotos = await Promise.all(photoPromises);
+      }
+
+      // 2. Prepare variants
+      let variants = [];
       if (saveData.variants && saveData.variants.length > 0) {
-        variantInserts = saveData.variants.map(v => ({
-          product_id: targetProductId,
+        variants = saveData.variants.map(v => ({
           article_id: v.article_id,
           size_id: v.size_id || null,
           color_id: v.color_id || null,
-          is_main: v.article_id === article.id
+          is_main: v.article_id === article.id,
+          barcode: v.barcode || null
         }));
       } else {
-        variantInserts = [{
-          product_id: targetProductId,
+        variants = [{
           article_id: article.id,
           size_id: null,
           color_id: null,
-          is_main: true
+          is_main: true,
+          barcode: article.barcode || null
         }];
       }
 
-      const { error: varErr } = await supabase.from('product_skus').insert(variantInserts);
-      if (varErr) throw varErr;
+      // 3. Save atomically via RPC
+      const { data, error } = await supabase.rpc('save_parsed_product', {
+        p_product_id: targetProductId,
+        p_product_data: productData,
+        p_photos: uploadedPhotos.length > 0 ? uploadedPhotos : null,
+        p_variants: variants,
+        p_materials: saveData.material_ids?.length > 0 ? saveData.material_ids : null
+      });
 
-      if (saveData.material_ids?.length > 0) {
-        await supabase.from('product_materials').insert(
-          saveData.material_ids.map(material_id => ({
-            product_id: targetProductId,
-            material_id
-          }))
-        );
-      }
+      if (error) throw error;
 
       // Success
       setArticles(prev => prev.filter(a => a.id !== article.id));
@@ -618,23 +590,23 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
       description: data.parsed.description || '',
       keywords: data.parsed.keywords || '',
       base_article_code: data.parsed.base_article_code || '',
-      variants: (data.parsed.variants?.length > 0 ? data.parsed.variants : data.uniqueVariants || []).map(v => {
+      variants: (data.uniqueVariants || []).map(uv => {
+        const aiVariant = data.parsed.variants?.find(ai => ai.article_id === uv.article_id);
+        
         let colorId = '';
         let sizeId = '';
-        if (v.color_ua) {
-          const foundColor = colors.find(c => c.name.toLowerCase() === v.color_ua.toLowerCase());
+        if (aiVariant?.color_ua) {
+          const foundColor = colors.find(c => c.name.toLowerCase() === aiVariant.color_ua.toLowerCase());
           if (foundColor) colorId = foundColor.id;
         }
-        if (v.size) {
-          const foundSize = sizes.find(s => s.name.toLowerCase() === v.size.toLowerCase());
+        if (aiVariant?.size) {
+          const foundSize = sizes.find(s => s.name.toLowerCase() === aiVariant.size.toLowerCase());
           if (foundSize) sizeId = foundSize.id;
         }
         
-        const text_name = v.text_name || data.uniqueVariants?.find(uv => uv.article_id === v.article_id)?.text_name || '';
-        
         return {
-          article_id: v.article_id,
-          text_name: text_name,
+          article_id: uv.article_id,
+          text_name: uv.text_name || '',
           color_id: colorId,
           size_id: sizeId
         };
@@ -647,11 +619,13 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
 
   // Quick Add states
   const [quickAddType, setQuickAddType] = useState(null); // 'brand', 'color', 'size', 'material'
+  const [quickAddVariantId, setQuickAddVariantId] = useState(null); // Для розмірів і кольорів
   const [quickAddData, setQuickAddData] = useState({});
   const [isQuickAdding, setIsQuickAdding] = useState(false);
 
-  const openQuickAdd = (type) => {
+  const openQuickAdd = (type, variantId = null) => {
     setQuickAddType(type);
+    setQuickAddVariantId(variantId);
     if (type === 'brand') setQuickAddData({ name: '' });
     if (type === 'color') setQuickAddData({ name: '', hex: '#ffffff' });
     if (type === 'size') setQuickAddData({ name: '', size_type: 'standard', sort_order: 0 });
@@ -667,13 +641,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
     setIsQuickAdding(true);
     try {
       let payload = { ...quickAddData };
-      if (quickAddType === 'brand') {
-        payload.slug = generateSlug(payload.name);
-      }
-      if (quickAddType === 'color') {
-        payload.slug = generateSlug(payload.name);
-      }
-      if (quickAddType === 'size') {
+      if (['brand', 'color', 'size'].includes(quickAddType)) {
         payload.slug = generateSlug(payload.name);
       }
 
@@ -683,11 +651,21 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
       await reloadDicts();
       
       if (quickAddType === 'brand') setFormData(prev => ({...prev, brand_id: newRow.id}));
-      if (quickAddType === 'color') setFormData(prev => ({...prev, color_id: newRow.id}));
-      if (quickAddType === 'size') setFormData(prev => ({...prev, size_id: newRow.id}));
       if (quickAddType === 'material') setFormData(prev => ({...prev, material_ids: [...prev.material_ids, newRow.id]}));
       
+      if ((quickAddType === 'color' || quickAddType === 'size') && quickAddVariantId) {
+        setFormData(prev => ({
+          ...prev,
+          variants: prev.variants.map(v => 
+            v.article_id === quickAddVariantId 
+              ? { ...v, [quickAddType === 'color' ? 'color_id' : 'size_id']: newRow.id }
+              : v
+          )
+        }));
+      }
+      
       setQuickAddType(null);
+      setQuickAddVariantId(null);
     } catch (err) {
       alert('Помилка додавання: ' + err.message);
     } finally {
@@ -812,32 +790,38 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                           <td className="px-3 py-1.5 align-middle">{v.article_id}</td>
                           <td className="px-3 py-1.5 align-middle text-xs truncate max-w-[200px]" title={v.text_name}>{v.text_name}</td>
                           <td className="px-3 py-1.5 align-middle">
-                            <select 
-                              value={v.size_id || ''} 
-                              onChange={(e) => {
-                                const newVariants = [...formData.variants];
-                                newVariants[i].size_id = e.target.value ? parseInt(e.target.value, 10) : null;
-                                setFormData({...formData, variants: newVariants});
-                              }}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
-                            >
-                              <option value="">-- Оберіть --</option>
-                              {sizes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                            </select>
+                            <div className="flex items-center gap-2">
+                              <select 
+                                value={v.size_id || ''} 
+                                onChange={(e) => {
+                                  const newVariants = [...formData.variants];
+                                  newVariants[i].size_id = e.target.value ? parseInt(e.target.value, 10) : null;
+                                  setFormData({...formData, variants: newVariants});
+                                }}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                              >
+                                <option value="">-- Оберіть --</option>
+                                {sizes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                              </select>
+                              <button onClick={() => openQuickAdd('size', v.article_id)} className="text-[10px] text-blue-600 font-medium whitespace-nowrap">+ Ств.</button>
+                            </div>
                           </td>
                           <td className="px-3 py-1.5 align-middle">
-                            <select 
-                              value={v.color_id || ''} 
-                              onChange={(e) => {
-                                const newVariants = [...formData.variants];
-                                newVariants[i].color_id = e.target.value ? parseInt(e.target.value, 10) : null;
-                                setFormData({...formData, variants: newVariants});
-                              }}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
-                            >
-                              <option value="">-- Оберіть --</option>
-                              {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                            </select>
+                            <div className="flex items-center gap-2">
+                              <select 
+                                value={v.color_id || ''} 
+                                onChange={(e) => {
+                                  const newVariants = [...formData.variants];
+                                  newVariants[i].color_id = e.target.value ? parseInt(e.target.value, 10) : null;
+                                  setFormData({...formData, variants: newVariants});
+                                }}
+                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                              >
+                                <option value="">-- Оберіть --</option>
+                                {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                              </select>
+                              <button onClick={() => openQuickAdd('color', v.article_id)} className="text-[10px] text-blue-600 font-medium whitespace-nowrap">+ Ств.</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
