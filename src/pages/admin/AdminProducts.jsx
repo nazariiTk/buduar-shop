@@ -34,7 +34,7 @@ export default function AdminProducts() {
   const reloadDicts = async () => {
     const [b, c, s, m] = await Promise.all([
       supabase.from('brands').select('*').order('name'),
-      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('colors').select('*').order('name'),
       supabase.from('sizes').select('*').order('sort_order'),
       supabase.from('materials').select('*').order('sort_order'),
     ]);
@@ -66,7 +66,7 @@ export default function AdminProducts() {
 
   const checkExistingGroup = async (baseCode) => {
     if (!baseCode) return null;
-    const { data } = await supabase.from('product_groups').select('id, name').eq('base_article_code', baseCode).limit(1).single();
+    const { data } = await supabase.from('products').select('id, name').eq('base_article_code', baseCode).limit(1).single();
     return data || null;
   };
 
@@ -100,7 +100,7 @@ export default function AdminProducts() {
     setLoading(true);
     try {
       // 1. Fetch already linked article IDs
-      const { data: variants } = await supabase.from('product_variants').select('article_id');
+      const { data: variants } = await supabase.from('product_skus').select('article_id');
       const linkedIds = variants?.map(v => v.article_id).filter(Boolean) || [];
 
       // 2. Fetch unlinked articles
@@ -183,6 +183,20 @@ export default function AdminProducts() {
     setIsParsing(true);
     try {
       const baseCode = article.code; // Use article.code directly
+      
+      const { data: allArticles } = await supabase
+        .from('product_view')
+        .select('*')
+        .eq('code', baseCode);
+
+      const uniqueVariantsMap = new Map();
+      (allArticles || []).forEach(a => {
+        if (!uniqueVariantsMap.has(a.article_id)) {
+          uniqueVariantsMap.set(a.article_id, a);
+        }
+      });
+      const uniqueVariants = Array.from(uniqueVariantsMap.values());
+      
       const existingGroup = await checkExistingGroup(baseCode);
 
       setCurrentParsed({
@@ -199,7 +213,8 @@ export default function AdminProducts() {
           variants: []
         },
         isManual: true,
-        autoGroup: existingGroup
+        autoGroup: existingGroup,
+        uniqueVariants
       });
     } finally {
       setIsParsing(false);
@@ -226,8 +241,8 @@ export default function AdminProducts() {
       const uniqueVariants = Array.from(uniqueVariantsMap.values());
       
       const variantsText = uniqueVariants.map(v => `- id: ${v.article_id}, назва: ${v.text_name}`).join('\\n');
-      const availableColors = colors.map(c => c.name_uk).join(', ');
-      const availableSizes = sizes.map(s => s.value).join(', ');
+      const availableColors = colors.map(c => c.name).join(', ');
+      const availableSizes = sizes.map(s => s.name).join(', ');
 
       const promptText = `Розбери групу товарів магазину білизни та одягу.
 Код товару: ${article.code}
@@ -313,7 +328,7 @@ ${variantsText}
       // Знайти матеріали
       if (parsedData.materials) {
         parsedData.material_ids = parsedData.materials
-          .map(name => materials.find(m => m.name_uk.toLowerCase() === name.toLowerCase())?.id)
+          .map(name => materials.find(m => m.name.toLowerCase() === name.toLowerCase())?.id)
           .filter(Boolean);
       }
 
@@ -322,7 +337,7 @@ ${variantsText}
 
       const existingGroup = await checkExistingGroup(baseCode);
 
-      setCurrentParsed({ article, parsed: parsedData, autoGroup: existingGroup });
+      setCurrentParsed({ article, parsed: parsedData, autoGroup: existingGroup, uniqueVariants });
     } catch (err) {
       console.error('Parsing error:', err);
       alert('Помилка парсингу для артикула: ' + article.code + '. ' + err.message);
@@ -333,10 +348,10 @@ ${variantsText}
     }
   };
 
-  const handleSaveParsed = async (saveData, saveMode, selectedGroupId, selectedPhotos) => {
+  const handleSaveParsed = async (saveData, saveMode, selectedProductId, selectedPhotos) => {
     try {
       const article = currentParsed.article;
-      let targetGroupId = selectedGroupId;
+      let targetProductId = selectedProductId;
 
       if (saveMode === 'new') {
         // 1. Create group
@@ -345,8 +360,8 @@ ${variantsText}
           .trim()
           .replace(/\s+/g, '-');
 
-        const { data: group, error: groupErr } = await supabase
-          .from('product_groups')
+        const { data: group, error: productErr } = await supabase
+          .from('products')
           .insert({
             name: saveData.base_name,
             slug: slug + '-' + Date.now(),
@@ -360,18 +375,18 @@ ${variantsText}
           .select('id')
           .single();
 
-        if (groupErr) throw groupErr;
-        targetGroupId = group.id;
+        if (productErr) throw productErr;
+        targetProductId = group.id;
 
         // 2. Upload photos if any
         if (selectedPhotos && selectedPhotos.length > 0) {
           try {
             const photoPromises = selectedPhotos.map(async (file, index) => {
               const ext = file.name.split('.').pop();
-              const path = `${targetGroupId}/${Date.now()}_${index}.${ext}`;
+              const path = `${targetProductId}/${Date.now()}_${index}.${ext}`;
               const url = await uploadProductImage(file, path);
               return {
-                group_id: targetGroupId,
+                product_id: targetProductId,
                 url,
                 sort_order: index,
                 is_main: index === 0  // ← перше фото головне
@@ -395,52 +410,36 @@ ${variantsText}
         }
       } else {
         // Existing group
-        if (!targetGroupId) throw new Error('Оберіть групу');
+        if (!targetProductId) throw new Error('Оберіть групу');
       }
 
       // 4. Create variants
-      const variantInserts = (saveData.variants || []).map(v => {
-        let colorId = null;
-        let sizeId = null;
-        if (v.color_ua) {
-          const foundColor = colors.find(c => c.name_uk.toLowerCase() === v.color_ua.toLowerCase());
-          if (foundColor) colorId = foundColor.id;
-        }
-        if (v.size) {
-          const foundSize = sizes.find(s => s.value.toLowerCase() === v.size.toLowerCase());
-          if (foundSize) sizeId = foundSize.id;
-        }
-        
-        return {
-          group_id: targetGroupId,
+      let variantInserts = [];
+      if (saveData.variants && saveData.variants.length > 0) {
+        variantInserts = saveData.variants.map(v => ({
+          product_id: targetProductId,
           article_id: v.article_id,
-          size: v.size || '',
-          color: v.color_ua || '',
-          size_id: sizeId,
-          color_id: colorId,
+          size_id: v.size_id || null,
+          color_id: v.color_id || null,
           is_main: v.article_id === article.id
-        };
-      });
-
-      if (variantInserts.length === 0) {
-        variantInserts.push({
-          group_id: targetGroupId,
+        }));
+      } else {
+        variantInserts = [{
+          product_id: targetProductId,
           article_id: article.id,
-          size: '',
-          color: '',
           size_id: null,
           color_id: null,
           is_main: true
-        });
+        }];
       }
 
-      const { error: varErr } = await supabase.from('product_variants').insert(variantInserts);
+      const { error: varErr } = await supabase.from('product_skus').insert(variantInserts);
       if (varErr) throw varErr;
 
       if (saveData.material_ids?.length > 0) {
         await supabase.from('product_materials').insert(
           saveData.material_ids.map(material_id => ({
-            group_id: targetGroupId,
+            product_id: targetProductId,
             material_id
           }))
         );
@@ -619,22 +618,44 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
   // Try to find the category ID if AI returned a slug
   const matchedCat = categories.find(c => c.slug === data.parsed.category_slug);
 
-  const [formData, setFormData] = useState({
-    brand_id: data.parsed.brand_id || '',
-    gender: data.parsed.gender || '',
-    material_ids: data.parsed.material_ids || [],
-    product_type: data.parsed.product_type || '',
-    base_name: data.parsed.base_name || '',
-    category_id: matchedCat ? matchedCat.id : '',
-    category_slug: data.parsed.category_slug || '',
-    description: data.parsed.description || '',
-    keywords: data.parsed.keywords || '',
-    base_article_code: data.parsed.base_article_code || '',
-    variants: data.parsed.variants || []
+  const [formData, setFormData] = useState(() => {
+    return {
+      brand_id: data.parsed.brand_id || '',
+      gender: data.parsed.gender || '',
+      material_ids: data.parsed.material_ids || [],
+      product_type: data.parsed.product_type || '',
+      base_name: data.parsed.base_name || '',
+      category_id: matchedCat ? matchedCat.id : '',
+      category_slug: data.parsed.category_slug || '',
+      description: data.parsed.description || '',
+      keywords: data.parsed.keywords || '',
+      base_article_code: data.parsed.base_article_code || '',
+      variants: (data.parsed.variants?.length > 0 ? data.parsed.variants : data.uniqueVariants || []).map(v => {
+        let colorId = '';
+        let sizeId = '';
+        if (v.color_ua) {
+          const foundColor = colors.find(c => c.name.toLowerCase() === v.color_ua.toLowerCase());
+          if (foundColor) colorId = foundColor.id;
+        }
+        if (v.size) {
+          const foundSize = sizes.find(s => s.name.toLowerCase() === v.size.toLowerCase());
+          if (foundSize) sizeId = foundSize.id;
+        }
+        
+        const text_name = v.text_name || data.uniqueVariants?.find(uv => uv.article_id === v.article_id)?.text_name || '';
+        
+        return {
+          article_id: v.article_id,
+          text_name: text_name,
+          color_id: colorId,
+          size_id: sizeId
+        };
+      })
+    };
   });
 
   const [saveMode, setSaveMode] = useState(data.autoGroup ? 'existing' : 'new'); // 'new' | 'existing'
-  const [selectedGroupId, setSelectedGroupId] = useState(data.autoGroup ? data.autoGroup.id : '');
+  const [selectedProductId, setSelectedGroupId] = useState(data.autoGroup ? data.autoGroup.id : '');
 
   // Quick Add states
   const [quickAddType, setQuickAddType] = useState(null); // 'brand', 'color', 'size', 'material'
@@ -644,16 +665,16 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
   const openQuickAdd = (type) => {
     setQuickAddType(type);
     if (type === 'brand') setQuickAddData({ name: '' });
-    if (type === 'color') setQuickAddData({ name_uk: '', hex: '#ffffff' });
-    if (type === 'size') setQuickAddData({ value: '', size_type: 'standard', sort_order: 0 });
-    if (type === 'material') setQuickAddData({ name_uk: '', sort_order: 0 });
+    if (type === 'color') setQuickAddData({ name: '', hex: '#ffffff' });
+    if (type === 'size') setQuickAddData({ name: '', size_type: 'standard', sort_order: 0 });
+    if (type === 'material') setQuickAddData({ name: '', sort_order: 0 });
   };
 
   const handleQuickAddSave = async () => {
     if (quickAddType === 'brand' && !quickAddData.name?.trim()) return alert('Введіть назву бренду');
-    if (quickAddType === 'color' && !quickAddData.name_uk?.trim()) return alert('Введіть назву кольору');
-    if (quickAddType === 'size' && !quickAddData.value?.trim()) return alert('Введіть значення розміру');
-    if (quickAddType === 'material' && !quickAddData.name_uk?.trim()) return alert('Введіть назву матеріалу');
+    if (quickAddType === 'color' && !quickAddData.name?.trim()) return alert('Введіть назву кольору');
+    if (quickAddType === 'size' && !quickAddData.name?.trim()) return alert('Введіть значення розміру');
+    if (quickAddType === 'material' && !quickAddData.name?.trim()) return alert('Введіть назву матеріалу');
 
     setIsQuickAdding(true);
     try {
@@ -662,7 +683,10 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
         payload.slug = generateSlug(payload.name);
       }
       if (quickAddType === 'color') {
-        payload.slug = generateSlug(payload.name_uk);
+        payload.slug = generateSlug(payload.name);
+      }
+      if (quickAddType === 'size') {
+        payload.slug = generateSlug(payload.name);
       }
 
       const { data: newRow, error } = await supabase.from(quickAddType + 's').insert(payload).select('*').single();
@@ -783,22 +807,50 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
             </div>
             {formData.variants && formData.variants.length > 0 && (
               <div className="col-span-2 mt-4 mb-2">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Знайдені варіанти (read-only)</label>
-                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded">
+                <label className="block text-xs font-medium text-gray-500 mb-2">Варіанти (Артикули)</label>
+                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0">
+                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0 z-10">
                       <tr>
-                        <th className="px-3 py-2 font-medium">ID Артикулу</th>
-                        <th className="px-3 py-2 font-medium">Колір (ШІ)</th>
-                        <th className="px-3 py-2 font-medium">Розмір (ШІ)</th>
+                        <th className="px-3 py-2 font-medium w-20">ID</th>
+                        <th className="px-3 py-2 font-medium w-1/3">Оригінальна назва</th>
+                        <th className="px-3 py-2 font-medium">Розмір</th>
+                        <th className="px-3 py-2 font-medium">Колір</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {formData.variants.map(v => (
+                      {formData.variants.map((v, i) => (
                         <tr key={v.article_id}>
-                          <td className="px-3 py-1.5">{v.article_id}</td>
-                          <td className={`px-3 py-1.5 ${!v.color_ua && 'text-gray-400 italic'}`}>{v.color_ua || 'Не визначено'}</td>
-                          <td className={`px-3 py-1.5 ${!v.size && 'text-gray-400 italic'}`}>{v.size || 'Не визначено'}</td>
+                          <td className="px-3 py-1.5 align-middle">{v.article_id}</td>
+                          <td className="px-3 py-1.5 align-middle text-xs truncate max-w-[200px]" title={v.text_name}>{v.text_name}</td>
+                          <td className="px-3 py-1.5 align-middle">
+                            <select 
+                              value={v.size_id || ''} 
+                              onChange={(e) => {
+                                const newVariants = [...formData.variants];
+                                newVariants[i].size_id = e.target.value ? parseInt(e.target.value, 10) : null;
+                                setFormData({...formData, variants: newVariants});
+                              }}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                            >
+                              <option value="">-- Оберіть --</option>
+                              {sizes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                          </td>
+                          <td className="px-3 py-1.5 align-middle">
+                            <select 
+                              value={v.color_id || ''} 
+                              onChange={(e) => {
+                                const newVariants = [...formData.variants];
+                                newVariants[i].color_id = e.target.value ? parseInt(e.target.value, 10) : null;
+                                setFormData({...formData, variants: newVariants});
+                              }}
+                              className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                            >
+                              <option value="">-- Оберіть --</option>
+                              {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -844,7 +896,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                         }));
                       }}
                     />
-                    {m.name_uk}
+                    {m.name}
                   </label>
                 ))}
               </div>
@@ -918,7 +970,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               <div className="bg-gray-50 p-4 rounded border border-gray-200">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Шукати групу</label>
                 <GroupCombobox
-                  value={selectedGroupId}
+                  value={selectedProductId}
                   initialName={data.autoGroup ? data.autoGroup.name : ''}
                   onChange={setSelectedGroupId}
                   onSelectNew={(newGroupName) => {
@@ -942,10 +994,10 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
           <button
             onClick={async () => {
               setIsSaving(true);
-              await onSave(formData, saveMode, selectedGroupId, selectedPhotos);
+              await onSave(formData, saveMode, selectedProductId, selectedPhotos);
               setIsSaving(false);
             }}
-            disabled={isSaving || (saveMode === 'existing' && !selectedGroupId)}
+            disabled={isSaving || (saveMode === 'existing' && !selectedProductId)}
             className="px-4 py-2 bg-gray-800 text-white rounded text-sm font-medium hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2 transition-colors min-w-[180px] justify-center"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
@@ -965,8 +1017,8 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               {(quickAddType === 'brand' || quickAddType === 'color' || quickAddType === 'material') && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Назва</label>
-                  <input type="text" value={quickAddData.name || quickAddData.name_uk || ''} 
-                    onChange={e => setQuickAddData({...quickAddData, [quickAddType === 'brand' ? 'name' : 'name_uk']: e.target.value})}
+                  <input type="text" value={quickAddData.name || ''} 
+                    onChange={e => setQuickAddData({...quickAddData, name: e.target.value})}
                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
                 </div>
               )}
@@ -974,7 +1026,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                 <>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Значення</label>
-                    <input type="text" value={quickAddData.value} onChange={e => setQuickAddData({...quickAddData, value: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                    <input type="text" value={quickAddData.name} onChange={e => setQuickAddData({...quickAddData, name: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-gray-500 mb-1">Тип розміру</label>
@@ -1036,7 +1088,7 @@ function GroupCombobox({ value, initialName, onChange, onSelectNew }) {
       setIsSearching(true);
       const safeQuery = query.replace(/[,%]/g, '');
       const { data } = await supabase
-        .from('product_groups')
+        .from('products')
         .select('id, name, base_article_code')
         .or(`name.ilike.%${safeQuery}%,base_article_code.ilike.%${safeQuery}%`)
         .limit(10);

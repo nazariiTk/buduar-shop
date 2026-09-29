@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { uploadProductImage, deleteProductImage } from '../../services/storage.service';
 import { Loader2, Edit, Image as ImageIcon, Check, X, Plus, Trash2, Star, Layers } from 'lucide-react';
 
-export default function AdminGroups() {
+export default function AdminCatalog() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +34,7 @@ export default function AdminGroups() {
   async function loadDicts() {
     const [b, c, s, m] = await Promise.all([
       supabase.from('brands').select('*').order('name'),
-      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('colors').select('*').order('name'),
       supabase.from('sizes').select('*').order('sort_order'),
       supabase.from('materials').select('*').order('sort_order'),
     ]);
@@ -60,11 +60,11 @@ export default function AdminGroups() {
   async function fetchData() {
     setLoading(true);
     const { data, error } = await supabase
-      .from('product_groups')
+      .from('products')
       .select(`
         *,
         product_photos(id, url, is_main, sort_order),
-        product_variants(id, size, color, article_id, is_main, color_id, size_id)
+        product_skus(id, article_id, is_main, color_id, size_id)
       `)
       .order('created_at', { ascending: false });
     
@@ -76,7 +76,7 @@ export default function AdminGroups() {
 
   const toggleActive = async (group) => {
     const { error } = await supabase
-      .from('product_groups')
+      .from('products')
       .update({ is_active: !group.is_active })
       .eq('id', group.id);
       
@@ -103,7 +103,7 @@ export default function AdminGroups() {
     const selectedCat = categories.find(c => c.id === Number(editGroup.category_id));
     
     const { error } = await supabase
-      .from('product_groups')
+      .from('products')
       .update({
         name: editGroup.name,
         description: editGroup.description,
@@ -144,7 +144,7 @@ export default function AdminGroups() {
         const { data } = await supabase
           .from('product_photos')
           .insert({
-            group_id: photoGroup.id,
+            product_id: photoGroup.id,
             url: url,
             is_main: isFirstNew,
             sort_order: photoGroup.product_photos.length + i
@@ -173,7 +173,7 @@ export default function AdminGroups() {
     await supabase
       .from('product_photos')
       .update({ is_main: false })
-      .eq('group_id', photoGroup.id);
+      .eq('product_id', photoGroup.id);
       
     // 2. Set new main
     await supabase
@@ -218,7 +218,7 @@ export default function AdminGroups() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-serif text-gray-800">Групи товарів</h1>
+        <h1 className="text-2xl font-serif text-gray-800">Каталог товарів</h1>
       </div>
 
       <div className="bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
@@ -244,7 +244,7 @@ export default function AdminGroups() {
               ) : groups.length === 0 ? (
                 <tr>
                   <td colSpan="6" className="px-6 py-8 text-center text-gray-500 font-medium">
-                    Груп не знайдено
+                    Товарів не знайдено
                   </td>
                 </tr>
               ) : (
@@ -275,7 +275,7 @@ export default function AdminGroups() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                        {group.product_variants ? group.product_variants.length : 0}
+                        {group.product_skus ? group.product_skus.length : 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <button
@@ -315,7 +315,7 @@ export default function AdminGroups() {
                           >
                             <Layers className="h-4 w-4" />
                             <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
-                              {group.product_variants?.length || 0}
+                              {group.product_skus?.length || 0}
                             </span>
                           </button>
                         </div>
@@ -334,14 +334,14 @@ export default function AdminGroups() {
         <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-md shadow-xl w-full max-w-lg">
             <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">Редагувати групу</h3>
+              <h3 className="text-lg font-medium text-gray-900">Редагувати товар</h3>
               <button onClick={() => setEditGroup(null)} className="text-gray-400 hover:text-gray-500">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Назва групи</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Назва товару</label>
                 <input
                   type="text"
                   name="name"
@@ -466,7 +466,7 @@ export default function AdminGroups() {
           <div className="bg-white rounded-md shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Фотографії групи</h3>
+                <h3 className="text-lg font-medium text-gray-900">Фотографії товару</h3>
                 <p className="text-sm text-gray-500">{photoGroup.name}</p>
               </div>
               <button onClick={() => setPhotoGroup(null)} className="text-gray-400 hover:text-gray-500">
@@ -568,7 +568,7 @@ export default function AdminGroups() {
 }
 
 function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
-  const [variants, setVariants] = useState(group.product_variants || []);
+  const [variants, setVariants] = useState(group.product_skus || []);
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(true);
   const [moving, setMoving] = useState(null); // variant id який переміщуємо
@@ -579,7 +579,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
     const dbValue = value === "" ? null : value;
     try {
       const { error } = await supabase
-        .from('product_variants')
+        .from('product_skus')
         .update({ [field]: dbValue })
         .eq('id', variantId);
 
@@ -589,7 +589,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
         v.id === variantId ? { ...v, [field]: dbValue } : v
       );
       setVariants(updated);
-      onUpdate({ ...group, product_variants: updated });
+      onUpdate({ ...group, product_skus: updated });
     } catch (error) {
       alert('Помилка оновлення: ' + error.message);
     }
@@ -629,7 +629,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
     if (!groupSearch.trim()) { setGroupResults([]); return; }
     const timer = setTimeout(async () => {
       const { data } = await supabase
-        .from('product_groups')
+        .from('products')
         .select('id, name')
         .ilike('name', `%${groupSearch}%`)
         .neq('id', group.id)
@@ -640,48 +640,48 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
   }, [groupSearch, group.id]);
 
   const handleDelete = async (variant) => {
-    if (!window.confirm(`Видалити варіант ${variant.size || ''} ${variant.color || ''}?`)) return;
+    if (!window.confirm(`Видалити варіант?`)) return;
     
     const { error } = await supabase
-      .from('product_variants')
+      .from('product_skus')
       .delete()
       .eq('id', variant.id);
     
     if (!error) {
       const updated = variants.filter(v => v.id !== variant.id);
       setVariants(updated);
-      onUpdate({ ...group, product_variants: updated });
+      onUpdate({ ...group, product_skus: updated });
     }
   };
 
   const handleSetMain = async (variant) => {
     // Скидаємо всі is_main для групи
     await supabase
-      .from('product_variants')
+      .from('product_skus')
       .update({ is_main: false })
-      .eq('group_id', group.id);
+      .eq('product_id', group.id);
     
     // Встановлюємо новий main
     await supabase
-      .from('product_variants')
+      .from('product_skus')
       .update({ is_main: true })
       .eq('id', variant.id);
     
     const updated = variants.map(v => ({ ...v, is_main: v.id === variant.id }));
     setVariants(updated);
-    onUpdate({ ...group, product_variants: updated });
+    onUpdate({ ...group, product_skus: updated });
   };
 
   const handleMove = async (variant, targetGroupId) => {
     const { error } = await supabase
-      .from('product_variants')
-      .update({ group_id: targetGroupId, is_main: false })
+      .from('product_skus')
+      .update({ product_id: targetGroupId, is_main: false })
       .eq('id', variant.id);
     
     if (!error) {
       const updated = variants.filter(v => v.id !== variant.id);
       setVariants(updated);
-      onUpdate({ ...group, product_variants: updated });
+      onUpdate({ ...group, product_skus: updated });
       setMoving(null);
       setGroupSearch('');
       setGroupResults([]);
@@ -693,7 +693,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       <div className="bg-white rounded-md shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Варіанти групи</h3>
+            <h3 className="text-lg font-medium text-gray-900">Варіанти товару</h3>
             <p className="text-sm text-gray-500">{group.name}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
@@ -747,7 +747,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
                           >
                             <option value="">—</option>
                             {sizes.map(s => (
-                              <option key={s.id} value={s.id}>{s.value}</option>
+                              <option key={s.id} value={s.id}>{s.name}</option>
                             ))}
                           </select>
                         </td>
@@ -759,7 +759,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
                           >
                             <option value="">—</option>
                             {colors.map(c => (
-                              <option key={c.id} value={c.id}>{c.name_uk}</option>
+                              <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                           </select>
                         </td>
@@ -787,7 +787,7 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
                             <button
                               onClick={() => setMoving(moving === variant.id ? null : variant.id)}
                               className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600"
-                              title="Перемістити в іншу групу"
+                              title="Перемістити в інший товар"
                             >
                               →
                             </button>

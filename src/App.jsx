@@ -11,7 +11,7 @@ import Contacts from './pages/Contacts';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
-import AdminGroups from './pages/admin/AdminGroups';
+import AdminCatalog from './pages/admin/AdminCatalog';
 import AdminDictionaries from './pages/admin/AdminDictionaries';
 import AdminLogin from './pages/admin/AdminLogin';
 import ProtectedRoute from './components/admin/ProtectedRoute';
@@ -60,7 +60,7 @@ function App() {
         <Route index element={<Navigate to="/admin/orders" replace />} />
         <Route path="orders" element={<AdminOrders />} />
         <Route path="products" element={<AdminProducts />} />
-        <Route path="groups" element={<AdminGroups />} />
+        <Route path="catalog" element={<AdminCatalog />} />
         <Route path="dictionaries" element={<AdminDictionaries />} />
       </Route>
     </Routes>

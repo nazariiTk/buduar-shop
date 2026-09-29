@@ -15,7 +15,7 @@ export default function AdminLayout() {
   const navItems = [
     { name: 'Замовлення', path: '/admin/orders', icon: ShoppingCart },
     { name: 'Товари', path: '/admin/products', icon: Package },
-    { name: 'Групи', path: '/admin/groups', icon: LayoutDashboard },
+    { name: 'Каталог', path: '/admin/catalog', icon: LayoutDashboard },
     { name: 'Довідники', path: '/admin/dictionaries', icon: BookOpen },
   ];
 

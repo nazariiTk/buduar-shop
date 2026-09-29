@@ -39,7 +39,7 @@ export default function Catalog() {
   useEffect(() => {
     Promise.all([
       supabase.from('sizes').select('*').order('sort_order'),
-      supabase.from('colors').select('*').order('name_uk'),
+      supabase.from('colors').select('*').order('name'),
       supabase.from('brands').select('*').order('name'),
     ]).then(([s, c, b]) => {
       setFilterSizes(s.data || []);
@@ -96,8 +96,8 @@ export default function Catalog() {
       setLoading(true);
       try {
         let query = supabase
-          .from('product_catalog_view')
-          .select('*', { count: 'exact' })
+          .from('products')
+          .select('*, product_photos(url, is_main), product_skus(article_id, is_main)', { count: 'exact' })
           .eq('is_active', true)
           .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
@@ -116,48 +116,48 @@ export default function Catalog() {
               children.some(ch => ch.id === c.parent_id)
             );
             
-            const slugs = [
-              cat.slug,
-              ...children.map(c => c.slug),
-              ...grandchildren.map(c => c.slug)
+            const catIds = [
+              cat.id,
+              ...children.map(c => c.id),
+              ...grandchildren.map(c => c.id)
             ];
             
-            query = query.in('category', slugs);
+            query = query.in('category_id', catIds);
           }
         }
 
-        // Розміри — через product_variants
+        // Розміри — через product_skus
         if (selectedSizes.size > 0) {
-          // Спочатку знаходимо group_id з потрібними розмірами
+          // Спочатку знаходимо product_id з потрібними розмірами
           const { data: variantData } = await supabase
-            .from('product_variants')
-            .select('group_id')
+            .from('product_skus')
+            .select('product_id')
             .in('size_id', [...selectedSizes]);
           
-          const groupIds = [...new Set(variantData?.map(v => v.group_id) || [])];
-          if (groupIds.length > 0) {
-            query = query.in('group_id', groupIds);
+          const productIds = [...new Set(variantData?.map(v => v.product_id) || [])];
+          if (productIds.length > 0) {
+            query = query.in('product_id', productIds);
           } else {
             setProducts([]); setLoading(false); return;
           }
         }
 
-        // Кольори — через product_variants
+        // Кольори — через product_skus
         if (selectedColors.size > 0) {
           const { data: variantData } = await supabase
-            .from('product_variants')
-            .select('group_id')
+            .from('product_skus')
+            .select('product_id')
             .in('color_id', [...selectedColors]);
           
-          const groupIds = [...new Set(variantData?.map(v => v.group_id) || [])];
-          if (groupIds.length > 0) {
-            query = query.in('group_id', groupIds);
+          const productIds = [...new Set(variantData?.map(v => v.product_id) || [])];
+          if (productIds.length > 0) {
+            query = query.in('product_id', productIds);
           } else {
             setProducts([]); setLoading(false); return;
           }
         }
 
-        // Бренди — напряму в product_groups (через brand_id)
+        // Бренди — напряму в products (через brand_id)
         if (selectedBrands.size > 0) {
           query = query.in('brand_id', [...selectedBrands]);
         }
@@ -166,12 +166,14 @@ export default function Catalog() {
         if (error) throw error;
         if (count !== null) setTotalCount(count);
 
-        // Extract article IDs to fetch prices
-        const articleIds = catalogData.map(p => p.main_article_id).filter(Boolean);
-        const groupIds = catalogData.map(p => p.group_id).filter(Boolean);
+        const articleIds = catalogData.map(p => {
+          const mainSku = p.product_skus?.find(s => s.is_main) || p.product_skus?.[0];
+          return mainSku?.article_id;
+        }).filter(Boolean);
+
+        const productIds = catalogData.map(p => p.id).filter(Boolean);
 
         let priceMap = {};
-        let photoMap = {};
 
         if (articleIds.length > 0) {
           const { data: priceData, error: priceError } = await supabase
@@ -190,18 +192,18 @@ export default function Catalog() {
           }
         }
 
-        // if (groupIds.length > 0) {
+        // if (productIds.length > 0) {
         //   const { data: photoData, error: photoError } = await supabase
         //     .from('product_photos')
-        //     .select('group_id, url')
-        //     .in('group_id', groupIds)
+        //     .select('product_id, url')
+        //     .in('product_id', productIds)
         //     .order('sort_order', { ascending: true });
 
         //   if (!photoError && photoData) {
         //     photoMap = photoData.reduce((acc, curr) => {
         //       // Store first photo only if not already stored
-        //       if (!acc[curr.group_id]) {
-        //         acc[curr.group_id] = curr.url;
+        //       if (!acc[curr.product_id]) {
+        //         acc[curr.product_id] = curr.url;
         //       }
         //       return acc;
         //     }, {});
@@ -209,11 +211,17 @@ export default function Catalog() {
         // }
 
         // Map prices and photos back to products
-        const productsWithPrice = catalogData.map(p => ({
-          ...p,
-          price: priceMap[p.main_article_id] || 0,
-          main_photo_url: p.main_photo_url || photoMap[p.group_id] || null
-        }));
+        const productsWithPrice = catalogData.map(p => {
+          const mainSku = p.product_skus?.find(s => s.is_main) || p.product_skus?.[0];
+          const mainArticleId = mainSku?.article_id;
+          const mainPhoto = p.product_photos?.find(photo => photo.is_main)?.url || p.product_photos?.[0]?.url || null;
+
+          return {
+            ...p,
+            price: priceMap[mainArticleId] || 0,
+            main_photo_url: mainPhoto
+          };
+        });
 
         const productsFiltered = productsWithPrice.filter(p => {
           const price = p.price;
@@ -375,7 +383,7 @@ export default function Catalog() {
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-8">
             {products.map(product => (
-              <ProductCard key={product.id || product.group_id} product={product} />
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         )}

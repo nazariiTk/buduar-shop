@@ -24,7 +24,7 @@ export default function ProductPage() {
       try {
         // 1. Load group
         const { data: groupData, error: groupErr } = await supabase
-          .from('product_groups')
+          .from('products')
           .select('*')
           .eq('slug', slug)
           .single();
@@ -36,15 +36,15 @@ export default function ProductPage() {
         const { data: photosData } = await supabase
           .from('product_photos')
           .select('*')
-          .eq('group_id', groupData.id)
+          .eq('product_id', groupData.id)
           .order('sort_order');
         setPhotos(photosData || []);
 
         // 3. Load variants
         const { data: variantsData } = await supabase
-          .from('product_variants')
-          .select('*')
-          .eq('group_id', groupData.id);
+          .from('product_skus')
+          .select('*, sizes(name), colors(name)')
+          .eq('product_id', groupData.id);
         
         if (variantsData && variantsData.length > 0) {
           const articleIds = variantsData.map(v => v.article_id);
@@ -55,11 +55,13 @@ export default function ProductPage() {
 
           const enrichedVariants = variantsData.map(v => ({
             ...v,
+            color: v.colors?.name || null,
+            size: v.sizes?.name || null,
             product_view: pricesData?.filter(p => p.article_id === v.article_id) || []
           }));
           setVariants(enrichedVariants);
           
-          const colors = [...new Set(variantsData.map(v => v.color).filter(Boolean))];
+          const colors = [...new Set(enrichedVariants.map(v => v.color).filter(Boolean))];
           if (colors.length > 0) {
             setSelectedColor(colors[0]);
           }
@@ -149,6 +151,27 @@ export default function ProductPage() {
           <meta property="og:description" content={product.description || ''} />
           {photos[0] && <meta property="og:image" content={photos[0].url} />}
           <meta property="og:type" content="product" />
+          <script type="application/ld+json">
+            {JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Product",
+              "name": product.name,
+              "image": photos.length > 0 ? photos.map(p => p.url) : undefined,
+              "description": product.description || `${product.name} — купити в магазині БУДУАР у Трускавці.`,
+              "brand": product.brands?.name ? {
+                "@type": "Brand",
+                "name": product.brands.name
+              } : undefined,
+              "offers": {
+                "@type": "Offer",
+                "url": typeof window !== 'undefined' ? window.location.href : '',
+                "priceCurrency": "UAH",
+                "price": displayPrice || 0,
+                "availability": "https://schema.org/InStock",
+                "itemCondition": "https://schema.org/NewCondition"
+              }
+            })}
+          </script>
         </Helmet>
       )}
       <div className="flex flex-col md:flex-row gap-12">

@@ -21,7 +21,7 @@ export default function AdminDictionaries() {
     let query = supabase.from(tab).select('*');
     
     if (tab === 'brands') query = query.order('name');
-    if (tab === 'colors') query = query.order('name_uk');
+    if (tab === 'colors') query = query.order('name');
     if (tab === 'sizes' || tab === 'materials') query = query.order('sort_order');
     
     const { data } = await query;
@@ -42,16 +42,16 @@ export default function AdminDictionaries() {
   const handleCreateNew = () => {
     setEditingId('new');
     if (activeTab === 'brands') setEditForm({ name: '' });
-    if (activeTab === 'colors') setEditForm({ name_uk: '', hex: '#ffffff' });
+    if (activeTab === 'colors') setEditForm({ name: '', hex: '#ffffff' });
     if (activeTab === 'sizes') setEditForm({ value: '', size_type: 'standard', sort_order: 0 });
-    if (activeTab === 'materials') setEditForm({ name_uk: '', sort_order: 0 });
+    if (activeTab === 'materials') setEditForm({ name: '', sort_order: 0 });
   };
 
   const handleSave = async () => {
     if (activeTab === 'brands' && !editForm.name?.trim()) return alert('Введіть назву бренду');
-    if (activeTab === 'colors' && !editForm.name_uk?.trim()) return alert('Введіть назву кольору');
-    if (activeTab === 'sizes' && !editForm.value?.trim()) return alert('Введіть значення розміру');
-    if (activeTab === 'materials' && !editForm.name_uk?.trim()) return alert('Введіть назву матеріалу');
+    if (activeTab === 'colors' && !editForm.name?.trim()) return alert('Введіть назву кольору');
+    if (activeTab === 'sizes' && !editForm.name?.trim()) return alert('Введіть значення розміру');
+    if (activeTab === 'materials' && !editForm.name?.trim()) return alert('Введіть назву матеріалу');
 
     setIsSaving(true);
     try {
@@ -62,7 +62,11 @@ export default function AdminDictionaries() {
       }
       
       if (activeTab === 'colors' && editingId === 'new') {
-        payload.slug = generateSlug(payload.name_uk);
+        payload.slug = generateSlug(payload.name);
+      }
+
+      if (activeTab === 'sizes' && editingId === 'new') {
+        payload.slug = generateSlug(payload.name);
       }
 
       if (editingId === 'new') {
@@ -114,7 +118,7 @@ export default function AdminDictionaries() {
               <>
                 <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Назва (укр)</label>
-                  <input type="text" value={editForm.name_uk || ''} onChange={e => setEditForm({...editForm, name_uk: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
                 </div>
                 <div className="w-32">
                   <label className="block text-xs text-gray-500 mb-1">HEX колір</label>
@@ -130,7 +134,7 @@ export default function AdminDictionaries() {
               <>
                 <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Значення</label>
-                  <input type="text" value={editForm.value || ''} onChange={e => setEditForm({...editForm, value: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
                 </div>
                 <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Тип</label>
@@ -153,7 +157,7 @@ export default function AdminDictionaries() {
               <>
                 <div className="flex-1">
                   <label className="block text-xs text-gray-500 mb-1">Назва (укр)</label>
-                  <input type="text" value={editForm.name_uk || ''} onChange={e => setEditForm({...editForm, name_uk: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
                 </div>
                 <div className="w-24">
                   <label className="block text-xs text-gray-500 mb-1">Сорт.</label>
@@ -183,7 +187,7 @@ export default function AdminDictionaries() {
         
         {activeTab === 'colors' && (
           <>
-            <td className="p-4">{item.name_uk}</td>
+            <td className="p-4">{item.name}</td>
             <td className="p-4">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-full border border-gray-200" style={{ backgroundColor: item.hex || '#fff' }}></div>
@@ -195,7 +199,7 @@ export default function AdminDictionaries() {
 
         {activeTab === 'sizes' && (
           <>
-            <td className="p-4 font-medium">{item.value}</td>
+            <td className="p-4 font-medium">{item.name}</td>
             <td className="p-4 text-sm text-gray-500">{item.size_type}</td>
             <td className="p-4 text-sm text-gray-500">{item.sort_order}</td>
           </>
@@ -203,7 +207,7 @@ export default function AdminDictionaries() {
 
         {activeTab === 'materials' && (
           <>
-            <td className="p-4">{item.name_uk}</td>
+            <td className="p-4">{item.name}</td>
             <td className="p-4 text-sm text-gray-500">{item.sort_order}</td>
           </>
         )}

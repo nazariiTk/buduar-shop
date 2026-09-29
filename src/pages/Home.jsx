@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
+import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
 
 export default function Home() {
@@ -21,40 +22,45 @@ export default function Home() {
     let slugs = orderData?.map(i => i.product_slug) || [];
     let fetchedProducts = [];
 
-    if (slugs.length > 0) {
+    // Query helper function
+    const getQuery = (filterSlugs) => {
       let query = supabase
-        .from('product_catalog_view')
-        .select('*')
-        .eq('is_active', true)
-        .in('slug', slugs);
+        .from('products')
+        // Using inner join on categories to filter by slug if provided
+        .select(`
+          *, 
+          product_photos(url, is_main), 
+          product_skus(article_id, is_main),
+          categories${categorySlug ? '!inner' : ''}(slug)
+        `)
+        .eq('is_active', true);
       
-      if (categorySlug) query = query.eq('category', categorySlug);
+      if (filterSlugs) query = query.in('slug', filterSlugs);
+      if (categorySlug) query = query.eq('categories.slug', categorySlug);
       
-      const { data } = await query;
+      return query;
+    };
+
+    if (slugs.length > 0) {
+      const { data } = await getQuery(slugs);
       fetchedProducts = data || [];
     }
 
     // 2. Fallback — якщо популярних немає (або немає за обраною категорією)
     if (fetchedProducts.length === 0) {
-      let query = supabase
-        .from('product_catalog_view')
-        .select('*')
-        .eq('is_active', true)
-        .limit(8);
-      
-      if (categorySlug) query = query.eq('category', categorySlug);
-      
+      let query = getQuery().limit(8);
       const { data } = await query;
       fetchedProducts = data || [];
     }
 
-    // 3. Збагачуємо даними фото та ціни (ручний join, як було раніше)
+    // 3. Збагачуємо даними цін
     if (fetchedProducts.length > 0) {
-      const articleIds = fetchedProducts.map(p => p.main_article_id).filter(Boolean);
-      const groupIds = fetchedProducts.map(p => p.id || p.group_id).filter(Boolean);
+      const articleIds = fetchedProducts.map(p => {
+        const mainSku = p.product_skus?.find(s => s.is_main) || p.product_skus?.[0];
+        return mainSku?.article_id;
+      }).filter(Boolean);
       
       let priceMap = {};
-      let photoMap = {};
 
       if (articleIds.length > 0) {
         const { data: priceData } = await supabase
@@ -72,28 +78,17 @@ export default function Home() {
         }
       }
 
-      if (groupIds.length > 0) {
-        const { data: photoData } = await supabase
-          .from('product_photos')
-          .select('group_id, url')
-          .in('group_id', groupIds)
-          .order('sort_order', { ascending: true });
+      fetchedProducts = fetchedProducts.map(p => {
+        const mainSku = p.product_skus?.find(s => s.is_main) || p.product_skus?.[0];
+        const mainArticleId = mainSku?.article_id;
+        const mainPhoto = p.product_photos?.find(photo => photo.is_main)?.url || p.product_photos?.[0]?.url || null;
 
-        if (photoData) {
-          photoMap = photoData.reduce((acc, curr) => {
-            if (!acc[curr.group_id]) {
-              acc[curr.group_id] = curr.url;
-            }
-            return acc;
-          }, {});
-        }
-      }
-
-      fetchedProducts = fetchedProducts.map(p => ({
-        ...p,
-        price: priceMap[p.main_article_id] || 0,
-        main_photo_url: p.main_photo_url || photoMap[p.id || p.group_id] || null
-      }));
+        return {
+          ...p,
+          price: priceMap[mainArticleId] || 0,
+          main_photo_url: mainPhoto
+        };
+      });
     }
 
     return fetchedProducts;
@@ -121,6 +116,44 @@ export default function Home() {
 
   return (
     <div>
+      <Helmet>
+        <title>БУДУАР — Бутик розкішної білизни</title>
+        <meta name="description" content="Магазин ексклюзивної білизни, піжам та купальників БУДУАР у Трускавці. Широкий асортимент та доставка по Україні." />
+        <meta property="og:title" content="БУДУАР — Бутик розкішної білизни" />
+        <meta property="og:description" content="Магазин ексклюзивної білизни, піжам та купальників БУДУАР у Трускавці. Широкий асортимент та доставка по Україні." />
+        <meta property="og:type" content="website" />
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "БУДУАР",
+            "url": typeof window !== 'undefined' ? window.location.origin : '',
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": `${typeof window !== 'undefined' ? window.location.origin : ''}/catalog?search={search_term_string}`
+              },
+              "query-input": "required name=search_term_string"
+            }
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "БУДУАР",
+            "url": typeof window !== 'undefined' ? window.location.origin : '',
+            "logo": `${typeof window !== 'undefined' ? window.location.origin : ''}/logo.png`,
+            "description": "Бутик розкішної білизни у Трускавці",
+            "address": {
+              "@type": "PostalAddress",
+              "addressLocality": "Трускавець",
+              "addressCountry": "UA"
+            }
+          })}
+        </script>
+      </Helmet>
       {/* Hero Section */}
       <section className="relative bg-[var(--color-primary-light)] overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

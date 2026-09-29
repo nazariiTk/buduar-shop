@@ -111,7 +111,7 @@ export default function FilterSidebar({
                       : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                   }`}
                 >
-                  {size.value}
+                  {size.name}
                 </button>
               ))}
           </div>
@@ -126,7 +126,7 @@ export default function FilterSidebar({
               <button
                 key={color.id}
                 onClick={() => onColorToggle(color.id)}
-                title={color.name_uk}
+                title={color.name}
                 className={`relative w-7 h-7 rounded-full border-2 transition-all ${
                   selectedColors.has(color.id)
                     ? 'border-gray-800 scale-110'
