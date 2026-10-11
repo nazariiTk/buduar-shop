@@ -59,6 +59,7 @@ serve(async (req) => {
     if (!GROQ_API_KEY) {
       throw new Error('GROQ_API_KEY is not configured on the server')
     }
+    const groqModel = Deno.env.get('GROQ_MODEL') ?? 'openai/gpt-oss-120b'
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
@@ -67,7 +68,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
+        model: groqModel,
         messages: [{ role: 'user', content: promptText }],
         temperature: 0.1,
         response_format: { type: 'json_object' },
