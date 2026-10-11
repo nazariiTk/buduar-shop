@@ -93,7 +93,6 @@ export default function AdminProducts() {
       ]);
 
       if (error) throw error;
-      if (countError) throw countError;
 
       const formatted = (data || []).map(row => ({
         id: row.code,
@@ -105,7 +104,12 @@ export default function AdminProducts() {
       }));
 
       setArticles(formatted);
-      setTotalCount(Number(count) || 0);
+      if (countError) {
+        console.warn('Could not load total unlinked product count:', countError);
+        setTotalCount(page * 50 + formatted.length + (formatted.length === 50 ? 1 : 0));
+      } else {
+        setTotalCount(Number(count) || 0);
+      }
     } catch (err) {
       console.error('Error fetching articles:', err);
     } finally {
