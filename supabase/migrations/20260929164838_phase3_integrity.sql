@@ -30,6 +30,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS product_skus_one_main_per_product
   ON product_skus (product_id)
   WHERE is_main;
 
+DROP FUNCTION IF EXISTS public.get_unlinked_articles(integer, integer, text, boolean);
+
 CREATE OR REPLACE FUNCTION public.get_unlinked_articles(
   p_limit integer DEFAULT 50,
   p_offset integer DEFAULT 0,
@@ -120,6 +122,8 @@ AS $$
     )
     AND (NOT coalesce(p_in_stock, true) OR pv.quantity > 0);
 $$;
+
+DROP FUNCTION IF EXISTS public.save_parsed_product(bigint, jsonb, jsonb, jsonb, jsonb);
 
 CREATE OR REPLACE FUNCTION public.save_parsed_product(
   p_product_id bigint DEFAULT NULL,
