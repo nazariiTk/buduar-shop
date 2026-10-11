@@ -79,14 +79,21 @@ export default function AdminProducts() {
     setLoading(true);
     try {
       // Fetch unlinked articles using RPC
-      const { data, count, error } = await supabase.rpc('get_unlinked_articles', {
-        p_limit: 50,
-        p_offset: page * 50,
+      const filters = {
         p_search: debouncedQuery || '',
         p_in_stock: inStockOnly
-      }, { count: 'exact' });
+      };
+      const [{ data, error }, { data: count, error: countError }] = await Promise.all([
+        supabase.rpc('get_unlinked_articles', {
+          p_limit: 50,
+          p_offset: page * 50,
+          ...filters
+        }),
+        supabase.rpc('get_unlinked_articles_count', filters)
+      ]);
 
       if (error) throw error;
+      if (countError) throw countError;
 
       const formatted = (data || []).map(row => ({
         id: row.code,
@@ -98,7 +105,7 @@ export default function AdminProducts() {
       }));
 
       setArticles(formatted);
-      if (count !== null) setTotalCount(count);
+      setTotalCount(Number(count) || 0);
     } catch (err) {
       console.error('Error fetching articles:', err);
     } finally {

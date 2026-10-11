@@ -96,6 +96,31 @@ AS $$
   OFFSET greatest(coalesce(p_offset, 0), 0);
 $$;
 
+CREATE OR REPLACE FUNCTION public.get_unlinked_articles_count(
+  p_search text DEFAULT '',
+  p_in_stock boolean DEFAULT true
+)
+RETURNS bigint
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+  SELECT count(DISTINCT pv.code)
+  FROM product_view pv
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM product_skus ps
+    WHERE ps.article_id = pv.article_id
+  )
+    AND (
+      coalesce(p_search, '') = ''
+      OR pv.code ILIKE '%' || p_search || '%'
+      OR pv.text_name ILIKE '%' || p_search || '%'
+    )
+    AND (NOT coalesce(p_in_stock, true) OR pv.quantity > 0);
+$$;
+
 CREATE OR REPLACE FUNCTION public.save_parsed_product(
   p_product_id bigint DEFAULT NULL,
   p_product_data jsonb DEFAULT NULL,
