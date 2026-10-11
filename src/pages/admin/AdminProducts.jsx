@@ -259,10 +259,10 @@ ${variantsText}
 Поверни ТІЛЬКИ JSON без жодного тексту навколо:
 {
   "brand_name": "назва бренду як є в назві товару або null",
-  "product_type": "тип товару українською (піжама/бюстгальтер/труси/купальник/халат/майка/блуза/боді/комплект/шорти/футболка тощо)",
+  "product_type": "тип товару українською (піжама/бюстгальтер/труси/купальник/халат/майка/блуза/боді/комплект/шорти/футболка/іграшка тощо)",
   "base_name": "назва для покупця без розміру і кольору",
   "description": "текст SEO-опису",
-  "category_slug": "обери одне: bras/panties/sets/bodysuits/pajamas/robes/nightgowns/swimsuits/bikinis/swim-tunics/towels/hats/sunglasses/flip-flops/suitcases/bags/kids-lingerie/kids-pajamas/kids-swimwear",
+  "category_slug": "обери одне: bras/panties/sets/bodysuits/pajamas/robes/nightgowns/swimsuits/bikinis/swim-tunics/towels/hats/sunglasses/flip-flops/suitcases/bags/kids-lingerie/kids-pajamas/kids-swimwear/toys",
   "keywords": "українські ключові слова через кому (синоніми, матеріал, призначення, стать)",
   "gender": "women/men/kids/unisex — визначити з контексту",
   "materials": ["Бавовна", "Еластан"],
