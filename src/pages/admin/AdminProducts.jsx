@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Loader2, Check, Search, X, ImagePlus } from 'lucide-react';
+import { Loader2, Check, Search } from 'lucide-react';
 import { uploadProductImage } from '../../services/storage.service';
 import useAiMetricsStore from '../../store/useAiMetricsStore';
 
@@ -45,10 +45,6 @@ export default function AdminProducts() {
   };
 
   useEffect(() => {
-    reloadDicts();
-  }, []);
-
-  useEffect(() => {
     async function loadCategories() {
       const { data } = await supabase.from('categories').select('*').order('sort_order');
       if (data) {
@@ -77,24 +73,7 @@ export default function AdminProducts() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  useEffect(() => {
-    setPage(0);
-  }, [debouncedQuery, inStockOnly]);
-
-  useEffect(() => {
-    fetchArticles();
-  }, [page, debouncedQuery, inStockOnly]);
-
   const isProcessingRef = useRef(false);
-
-  useEffect(() => {
-    if (parsingQueue.length > 0 && !currentParsed && !isProcessingRef.current) {
-      isProcessingRef.current = true;
-      processQueue().finally(() => {
-        isProcessingRef.current = false;
-      });
-    }
-  }, [parsingQueue.length, currentParsed]);
 
   async function fetchArticles() {
     setLoading(true);
@@ -163,13 +142,28 @@ export default function AdminProducts() {
         .select('*')
         .eq('code', baseCode);
 
+      const articleIds = allArticles?.map(a => a.article_id) || [];
+      const { data: linkedSkus, error: linkedError } = await supabase
+        .from('product_skus')
+        .select('article_id')
+        .in('article_id', articleIds);
+
+      if (linkedError) throw linkedError;
+
+      const linkedSet = new Set(linkedSkus?.map(s => s.article_id) || []);
       const uniqueVariantsMap = new Map();
       (allArticles || []).forEach(a => {
-        if (!uniqueVariantsMap.has(a.article_id)) {
+        if (!linkedSet.has(a.article_id) && !uniqueVariantsMap.has(a.article_id)) {
           uniqueVariantsMap.set(a.article_id, a);
         }
       });
       const uniqueVariants = Array.from(uniqueVariantsMap.values());
+
+      if (uniqueVariants.length === 0) {
+        alert('Всі варіанти для цього коду вже згруповані!');
+        setArticles(prev => prev.filter(a => a.id !== article.id));
+        return;
+      }
       
       const existingGroup = await checkExistingGroup(baseCode);
 
@@ -209,10 +203,12 @@ export default function AdminProducts() {
 
       // Отримуємо вже прив'язані артикули, щоб виключити їх
       const articleIds = allArticles?.map(a => a.article_id) || [];
-      const { data: linkedSkus } = await supabase
+      const { data: linkedSkus, error: linkedError } = await supabase
         .from('product_skus')
         .select('article_id')
         .in('article_id', articleIds);
+
+      if (linkedError) throw linkedError;
         
       const linkedSet = new Set(linkedSkus?.map(s => s.article_id) || []);
 
@@ -270,7 +266,17 @@ ${variantsText}
       });
 
       if (error) {
-        throw new Error(error.message || 'Помилка при виконанні серверної функції parse-product');
+        let details = '';
+        if (error.context instanceof Response) {
+          try {
+            const body = await error.context.clone().json();
+            const providerMessage = body?.error?.message || body?.error;
+            if (providerMessage) details = `: ${providerMessage}`;
+          } catch {
+            // Keep the SDK error when the function response is not JSON.
+          }
+        }
+        throw new Error((error.message || 'Помилка при виконанні серверної функції parse-product') + details);
       }
 
       if (data?.error) {
@@ -328,7 +334,31 @@ ${variantsText}
     }
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void reloadDicts();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchArticles();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [page, debouncedQuery, inStockOnly]);
+
+  useEffect(() => {
+    if (parsingQueue.length > 0 && !currentParsed && !isProcessingRef.current) {
+      isProcessingRef.current = true;
+      processQueue().finally(() => {
+        isProcessingRef.current = false;
+      });
+    }
+  }, [parsingQueue.length, currentParsed]);
+
   const handleSaveParsed = async (saveData, saveMode, selectedProductId, selectedPhotos) => {
+    const uploadedPaths = [];
     try {
       const article = currentParsed.article;
       let targetProductId = selectedProductId;
@@ -365,10 +395,11 @@ ${variantsText}
           const ext = file.name.split('.').pop();
           const path = `${targetProductId}/${Date.now()}_${index}.${ext}`;
           const url = await uploadProductImage(file, path);
+          uploadedPaths.push(path);
           return {
             url,
             sort_order: index,
-            is_main: index === 0
+            is_main: saveMode === 'new' && index === 0
           };
         });
         uploadedPhotos = await Promise.all(photoPromises);
@@ -395,7 +426,7 @@ ${variantsText}
       }
 
       // 3. Save atomically via RPC
-      const { data, error } = await supabase.rpc('save_parsed_product', {
+      const { error } = await supabase.rpc('save_parsed_product', {
         p_product_id: saveMode === 'existing' ? parseInt(targetProductId, 10) : null,
         p_product_data: productData,
         p_photos: uploadedPhotos.length > 0 ? uploadedPhotos : null,
@@ -414,6 +445,9 @@ ${variantsText}
       setParsingQueue(prev => prev.slice(1));
 
     } catch (err) {
+      if (uploadedPaths.length > 0) {
+        await supabase.storage.from('products').remove(uploadedPaths);
+      }
       console.error('Save error:', err);
       alert('Помилка при збереженні: ' + err.message);
     }
@@ -436,7 +470,10 @@ ${variantsText}
             <input 
               type="checkbox" 
               checked={inStockOnly} 
-              onChange={(e) => setInStockOnly(e.target.checked)}
+              onChange={(e) => {
+                setInStockOnly(e.target.checked);
+                setPage(0);
+              }}
               className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
             />
             Тільки в наявності ({'>'} 0)
@@ -458,7 +495,10 @@ ${variantsText}
         <input
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setPage(0);
+          }}
           placeholder="Пошук за назвою, кодом або штрихкодом..."
           className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-gray-500 focus:border-gray-500 sm:text-sm transition-colors"
         />
@@ -942,7 +982,6 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               <div className="bg-gray-50 p-4 rounded border border-gray-200">
                 <label className="block text-xs font-medium text-gray-500 mb-1">Шукати групу</label>
                 <GroupCombobox
-                  value={selectedProductId}
                   initialName={data.autoGroup ? data.autoGroup.name : ''}
                   onChange={setSelectedGroupId}
                   onSelectNew={(newGroupName) => {
@@ -1043,7 +1082,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
   );
 }
 
-function GroupCombobox({ value, initialName, onChange, onSelectNew }) {
+function GroupCombobox({ initialName, onChange, onSelectNew }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [isOpen, setIsOpen] = useState(false);

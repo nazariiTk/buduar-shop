@@ -7,17 +7,22 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Check if the user is authenticated
+    if (req.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 405,
+      })
+    }
+
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }
     )
 
     const {
@@ -32,10 +37,16 @@ serve(async (req) => {
       })
     }
 
-    // You can optionally add a role check here if your admin uses a specific role
-    // e.g., checking if user is an admin in a profiles table or JWT claim
-
-    const { promptText } = await req.json()
+    let promptText: string
+    try {
+      const body = await req.json()
+      promptText = typeof body?.promptText === 'string' ? body.promptText.trim() : ''
+    } catch {
+      return new Response(JSON.stringify({ error: 'Request body must be valid JSON' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      })
+    }
 
     if (!promptText) {
       return new Response(JSON.stringify({ error: 'promptText is required' }), {
@@ -63,7 +74,13 @@ serve(async (req) => {
       }),
     })
 
-    const data = await response.json()
+    const responseText = await response.text()
+    let data: Record<string, unknown>
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      data = { error: responseText || 'Groq returned an empty response' }
+    }
 
     // Pass rate limits headers back to client
     const headers = new Headers({
@@ -77,12 +94,28 @@ serve(async (req) => {
       'x-ratelimit-reset-tokens': response.headers.get('x-ratelimit-reset-tokens') || '',
     })
 
+    if (!response.ok) {
+      return new Response(JSON.stringify({
+        error: {
+          code: 'GROQ_API_ERROR',
+          message: typeof data.error === 'string'
+            ? data.error
+            : (data.error as { message?: string } | undefined)?.message || 'Groq API request failed',
+          providerStatus: response.status,
+        },
+      }), {
+        status: 502,
+        headers,
+      })
+    }
+
     return new Response(JSON.stringify(data), {
-      status: response.status,
+      status: 200,
       headers,
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : 'Unexpected parser error'
+    return new Response(JSON.stringify({ error: { code: 'PARSER_ERROR', message } }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     })

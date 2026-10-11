@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadProductImage, deleteProductImage } from '../../services/storage.service';
-import { Loader2, Edit, Image as ImageIcon, Check, X, Plus, Trash2, Star, Layers } from 'lucide-react';
+import { Loader2, Edit, Image as ImageIcon, X, Plus, Trash2, Star, Layers } from 'lucide-react';
 
 export default function AdminCatalog() {
   const [groups, setGroups] = useState([]);
@@ -23,13 +23,7 @@ export default function AdminCatalog() {
   const [brands, setBrands] = useState([]);
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
-  const [materials, setMaterials] = useState([]);
-
-  useEffect(() => {
-    fetchData();
-    fetchCategories();
-    loadDicts();
-  }, []);
+  const [, setMaterials] = useState([]);
 
   async function loadDicts() {
     const [b, c, s, m] = await Promise.all([
@@ -73,6 +67,15 @@ export default function AdminCatalog() {
     }
     setLoading(false);
   }
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchData();
+      void fetchCategories();
+      void loadDicts();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
 
   const toggleActive = async (group) => {
     const { error } = await supabase
@@ -130,68 +133,75 @@ export default function AdminCatalog() {
   const handleUploadPhotos = async (e) => {
     if (!e.target.files || e.target.files.length === 0) return;
     setSaving(true);
-    const files = Array.from(e.target.files);
-    
-    let hasMain = photoGroup.product_photos.some(p => p.is_main);
-    const newPhotos = [];
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const isFirstNew = i === 0 && !hasMain && photoGroup.product_photos.length === 0;
-      
-      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '');
-      const path = `${photoGroup.id}/${Date.now()}_${safeName}`;
-      const url = await uploadProductImage(file, path);
-      if (url) {
-        const { data } = await supabase
+    try {
+      const files = Array.from(e.target.files);
+      const hasMain = photoGroup.product_photos.some(p => p.is_main);
+      const newPhotos = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isFirstNew = i === 0 && !hasMain && photoGroup.product_photos.length === 0;
+
+        const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '');
+        const path = `${photoGroup.id}/${Date.now()}_${safeName}`;
+        const url = await uploadProductImage(file, path);
+        const { data, error } = await supabase
           .from('product_photos')
           .insert({
             product_id: photoGroup.id,
-            url: url,
+            url,
             is_main: isFirstNew,
             sort_order: photoGroup.product_photos.length + i
           })
           .select()
           .single();
-          
+
+        if (error) throw error;
         if (data) newPhotos.push(data);
       }
+
+      const updatedGroup = {
+        ...photoGroup,
+        product_photos: [...photoGroup.product_photos, ...newPhotos]
+      };
+      setPhotoGroup(updatedGroup);
+      setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
+    } catch (err) {
+      alert(`Помилка завантаження фото: ${err.message}`);
+    } finally {
+      setSaving(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
-    
-    const updatedGroup = {
-      ...photoGroup,
-      product_photos: [...photoGroup.product_photos, ...newPhotos]
-    };
-    setPhotoGroup(updatedGroup);
-    setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
-    setSaving(false);
-    
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSetMainPhoto = async (photoId) => {
     setSaving(true);
-    // 1. Reset all
-    await supabase
-      .from('product_photos')
-      .update({ is_main: false })
-      .eq('product_id', photoGroup.id);
-      
-    // 2. Set new main
-    await supabase
-      .from('product_photos')
-      .update({ is_main: true })
-      .eq('id', photoId);
-      
-    const updatedPhotos = photoGroup.product_photos.map(p => ({
-      ...p,
-      is_main: p.id === photoId
-    }));
-    
-    const updatedGroup = { ...photoGroup, product_photos: updatedPhotos };
-    setPhotoGroup(updatedGroup);
-    setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
-    setSaving(false);
+    try {
+      const { error: resetError } = await supabase
+        .from('product_photos')
+        .update({ is_main: false })
+        .eq('product_id', photoGroup.id);
+      if (resetError) throw resetError;
+
+      const { error: setMainError } = await supabase
+        .from('product_photos')
+        .update({ is_main: true })
+        .eq('id', photoId);
+      if (setMainError) throw setMainError;
+
+      const updatedPhotos = photoGroup.product_photos.map(p => ({
+        ...p,
+        is_main: p.id === photoId
+      }));
+
+      const updatedGroup = { ...photoGroup, product_photos: updatedPhotos };
+      setPhotoGroup(updatedGroup);
+      setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
+    } catch (err) {
+      alert(`Помилка зміни головного фото: ${err.message}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDeletePhoto = async (photo) => {
@@ -204,7 +214,11 @@ export default function AdminCatalog() {
         await deleteProductImage(path);
       }
       
-      await supabase.from('product_photos').delete().eq('id', photo.id);
+      const { error: deleteError } = await supabase
+        .from('product_photos')
+        .delete()
+        .eq('id', photo.id);
+      if (deleteError) throw deleteError;
       
       const updatedPhotos = photoGroup.product_photos.filter(p => p.id !== photo.id);
       const updatedGroup = { ...photoGroup, product_photos: updatedPhotos };
@@ -563,13 +577,14 @@ export default function AdminCatalog() {
             setGroups(groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
             setVariantsGroup(updatedGroup);
           }}
+          onRefresh={fetchData}
         />
       )}
     </div>
   );
 }
 
-function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
+function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
   const [variants, setVariants] = useState(group.product_skus || []);
   const [articles, setArticles] = useState({});
   const [loading, setLoading] = useState(true);
@@ -628,7 +643,10 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
 
   // Пошук груп для переміщення
   useEffect(() => {
-    if (!groupSearch.trim()) { setGroupResults([]); return; }
+    if (!groupSearch.trim()) {
+      const timer = setTimeout(() => setGroupResults([]), 0);
+      return () => clearTimeout(timer);
+    }
     const timer = setTimeout(async () => {
       const { data } = await supabase
         .from('products')
@@ -654,20 +672,38 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       
       if (variant.is_main && updated.length > 0) {
         const newMainId = updated[0].id;
-        await supabase.from('product_skus').update({ is_main: true }).eq('id', newMainId);
+        const { error: mainError } = await supabase
+          .from('product_skus')
+          .update({ is_main: true })
+          .eq('id', newMainId);
+        if (mainError) {
+          alert(`Варіант видалено, але не вдалося призначити головний: ${mainError.message}`);
+          return;
+        }
         updated = updated.map(v => v.id === newMainId ? { ...v, is_main: true } : v);
       }
       
       setVariants(updated);
       onUpdate({ ...group, product_skus: updated });
+    } else {
+      alert(`Помилка видалення варіанта: ${error.message}`);
     }
   };
 
   const handleSetMain = async (variant) => {
     try {
       // Виконуємо послідовно: спочатку знімаємо старий main
-      await supabase.from('product_skus').update({ is_main: false }).eq('product_id', group.id);
-      await supabase.from('product_skus').update({ is_main: true }).eq('id', variant.id);
+      const { error: resetError } = await supabase
+        .from('product_skus')
+        .update({ is_main: false })
+        .eq('product_id', group.id);
+      if (resetError) throw resetError;
+
+      const { error: setMainError } = await supabase
+        .from('product_skus')
+        .update({ is_main: true })
+        .eq('id', variant.id);
+      if (setMainError) throw setMainError;
       
       const updated = variants.map(v => ({ ...v, is_main: v.id === variant.id }));
       setVariants(updated);
@@ -689,8 +725,34 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       
       if (variant.is_main && updated.length > 0) {
         const newMainId = updated[0].id;
-        await supabase.from('product_skus').update({ is_main: true }).eq('id', newMainId);
+        const { error: sourceMainError } = await supabase
+          .from('product_skus')
+          .update({ is_main: true })
+          .eq('id', newMainId);
+        if (sourceMainError) {
+          alert(`Варіант переміщено, але не вдалося призначити головний у поточній групі: ${sourceMainError.message}`);
+          return;
+        }
         updated = updated.map(v => v.id === newMainId ? { ...v, is_main: true } : v);
+      }
+
+      const { data: targetVariants, error: targetLoadError } = await supabase
+        .from('product_skus')
+        .select('id, is_main')
+        .eq('product_id', targetGroupId);
+      if (targetLoadError) {
+        alert(`Варіант переміщено, але не вдалося перевірити цільову групу: ${targetLoadError.message}`);
+        return;
+      }
+      if (targetVariants.length > 0 && !targetVariants.some(v => v.is_main)) {
+        const { error: targetMainError } = await supabase
+          .from('product_skus')
+          .update({ is_main: true })
+          .eq('id', targetVariants[0].id);
+        if (targetMainError) {
+          alert(`Варіант переміщено, але не вдалося призначити головний у цільовій групі: ${targetMainError.message}`);
+          return;
+        }
       }
       
       setVariants(updated);
@@ -698,6 +760,9 @@ function VariantsModal({ group, onClose, onUpdate, colors, sizes }) {
       setMoving(null);
       setGroupSearch('');
       setGroupResults([]);
+      await onRefresh();
+    } else {
+      alert(`Помилка переміщення варіанта: ${error.message}`);
     }
   };
 
