@@ -102,16 +102,12 @@ export default function AdminCatalog() {
   const saveEditGroup = async () => {
     setSaving(true);
     
-    // Знаходимо slug категорії, якщо вона вибрана (для зворотної сумісності)
-    const selectedCat = categories.find(c => c.id === Number(editGroup.category_id));
-    
     const { error } = await supabase
       .from('products')
       .update({
         name: editGroup.name,
         description: editGroup.description,
         category_id: editGroup.category_id || null,
-        category: selectedCat ? selectedCat.slug : null,
         keywords: editGroup.keywords || null,
         is_active: editGroup.is_active,
         brand_id: editGroup.brand_id || null,
