@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCartStore } from '../store/useCartStore';
 
@@ -39,6 +40,7 @@ export default function ProductPage() {
           .eq('product_id', groupData.id)
           .order('sort_order');
         setPhotos(photosData || []);
+        setActivePhoto(0);
 
         // 3. Load variants
         const { data: variantsData } = await supabase
@@ -82,6 +84,14 @@ export default function ProductPage() {
   useEffect(() => {
     setSelectedSize(null);
   }, [selectedColor]);
+
+  const showPreviousPhoto = () => {
+    setActivePhoto(current => (current - 1 + photos.length) % photos.length);
+  };
+
+  const showNextPhoto = () => {
+    setActivePhoto(current => (current + 1) % photos.length);
+  };
 
   const handleAddToCart = () => {
     const selectedVariants = variants.filter(v => v.color === selectedColor && v.size === selectedSize);
@@ -184,11 +194,33 @@ export default function ProductPage() {
         <div className="w-full md:w-3/5">
           <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-[var(--color-primary-light)] mb-4">
             {photos.length > 0 ? (
-              <img 
-                src={photos[activePhoto].url} 
-                alt={photos[activePhoto].alt_text || product.name} 
-                className="w-full h-full object-cover transition-opacity duration-300"
-              />
+              <>
+                <img
+                  src={photos[activePhoto].url}
+                  alt={photos[activePhoto].alt_text || product.name}
+                  className="w-full h-full object-cover transition-opacity duration-300"
+                />
+                {photos.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={showPreviousPhoto}
+                      aria-label="Попередня фотографія"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-white/60 hover:text-white/95 transition-colors"
+                    >
+                      <ChevronLeft className="h-7 w-7 drop-shadow-md" strokeWidth={1.5} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={showNextPhoto}
+                      aria-label="Наступна фотографія"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-white/60 hover:text-white/95 transition-colors"
+                    >
+                      <ChevronRight className="h-7 w-7 drop-shadow-md" strokeWidth={1.5} />
+                    </button>
+                  </>
+                )}
+              </>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[var(--color-primary)]">БУДУАР</div>
             )}
