@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Menu, X, ChevronDown } from 'lucide-react';
+import { ShoppingBag, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
@@ -14,11 +14,20 @@ export default function Header() {
   const [megaOpen, setMegaOpen] = useState(false);
   const [activeGender, setActiveGender] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [session, setSession] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     supabase.from('categories').select('*').order('sort_order')
       .then(({ data }) => setCategories(data || []));
+  }, []);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const level1 = categories.filter(c => !c.parent_id);
@@ -147,6 +156,11 @@ export default function Header() {
                   {itemCount}
                 </span>
               )}
+            </Link>
+
+            <Link to={session ? '/account' : '/login'} aria-label="Особистий кабінет"
+              className="p-2 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors">
+              <User className="h-6 w-6" />
             </Link>
 
             <button 

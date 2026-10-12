@@ -45,6 +45,14 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
+    const authorization = req.headers.get('Authorization')
+    let userId: string | null = null
+    if (authorization?.startsWith('Bearer ')) {
+      const { data: userData } = await supabase.auth.getUser(
+        authorization.slice('Bearer '.length)
+      )
+      userId = userData.user?.id || null
+    }
 
     // Валідація цін та наявності зі сторони сервера
     const articleIds = body.items.map((i: any) => i.id)
@@ -131,6 +139,7 @@ serve(async (req) => {
         total:            subtotal,
         user_agent:       body.user_agent || null,
         referrer:         body.referrer || null,
+        user_id:          userId,
       })
       .select('id, order_number')
       .single()

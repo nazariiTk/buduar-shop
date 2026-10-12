@@ -8,11 +8,15 @@ import Cart from './pages/Cart';
 import Checkout from './pages/Checkout';
 import ProductPage from './pages/ProductPage';
 import Contacts from './pages/Contacts';
+import Register from './pages/Register';
+import Login from './pages/Login';
+import Account from './pages/Account';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminCatalog from './pages/admin/AdminCatalog';
 import AdminDictionaries from './pages/admin/AdminDictionaries';
+import AdminCustomers from './pages/admin/AdminCustomers';
 import AdminLogin from './pages/admin/AdminLogin';
 import ProtectedRoute from './components/admin/ProtectedRoute';
 
@@ -46,6 +50,9 @@ function App() {
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/product/:slug" element={<ProductPage />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/account" element={<Account />} />
       </Route>
       
       {/* Admin Login */}
@@ -62,6 +69,7 @@ function App() {
         <Route path="products" element={<AdminProducts />} />
         <Route path="catalog" element={<AdminCatalog />} />
         <Route path="dictionaries" element={<AdminDictionaries />} />
+        <Route path="customers" element={<AdminCustomers />} />
       </Route>
     </Routes>
     </>

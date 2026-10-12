@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Package, ShoppingCart, LayoutDashboard, Cpu, LogOut, BookOpen } from 'lucide-react';
+import { Package, ShoppingCart, LayoutDashboard, Cpu, LogOut, BookOpen, Users } from 'lucide-react';
 import useAiMetricsStore from '../../store/useAiMetricsStore';
 import { supabase } from '../../lib/supabase';
 
@@ -17,6 +17,7 @@ export default function AdminLayout() {
     { name: 'Товари', path: '/admin/products', icon: Package },
     { name: 'Каталог', path: '/admin/catalog', icon: LayoutDashboard },
     { name: 'Довідники', path: '/admin/dictionaries', icon: BookOpen },
+    { name: 'Клієнти', path: '/admin/customers', icon: Users },
   ];
 
   return (
