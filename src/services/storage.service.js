@@ -9,7 +9,7 @@ const BUCKET_NAME = 'products';
  * @returns {Promise<string>} - Публічний URL завантаженого файлу
  */
 export async function uploadProductImage(file, path) {
-  const { data, error } = await supabase
+  const { error } = await supabase
     .storage
     .from(BUCKET_NAME)
     .upload(path, file, {

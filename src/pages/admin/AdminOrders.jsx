@@ -26,27 +26,27 @@ export default function AdminOrders() {
   const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   useEffect(() => {
+    async function fetchOrders() {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select(`
+            *,
+            order_items (*)
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setOrders(data || []);
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
     fetchOrders();
   }, []);
-
-  async function fetchOrders() {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (*)
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setOrders(data || []);
-    } catch (err) {
-      console.error('Error fetching orders:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {

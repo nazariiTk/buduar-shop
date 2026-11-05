@@ -94,17 +94,19 @@ export default function Home() {
     return fetchedProducts;
   }
 
-  async function loadProducts(categorySlug) {
-    setLoading(true);
-    // НЕ очищаємо products одразу — залишаємо старі для плавного переходу
-    const data = await fetchPopular(categorySlug);
-    setProducts(data);
-    setPreviousProducts(data);
-    setLoading(false);
-  }
-
   useEffect(() => {
-    loadProducts(activeCategory);
+    let active = true;
+    async function run() {
+      setLoading(true);
+      const data = await fetchPopular(activeCategory);
+      if (active) {
+        setProducts(data);
+        setPreviousProducts(data);
+        setLoading(false);
+      }
+    }
+    run();
+    return () => { active = false; };
   }, [activeCategory]);
 
   const categories = [

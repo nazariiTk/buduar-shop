@@ -66,6 +66,7 @@ export default function ProductPage() {
           const colors = [...new Set(enrichedVariants.map(v => v.color).filter(Boolean))];
           if (colors.length > 0) {
             setSelectedColor(colors[0]);
+            setSelectedSize(null);
           }
         } else {
           setVariants([]);
@@ -79,11 +80,6 @@ export default function ProductPage() {
     
     if (slug) loadProduct();
   }, [slug]);
-
-  // Handle color change
-  useEffect(() => {
-    setSelectedSize(null);
-  }, [selectedColor]);
 
   const showPreviousPhoto = () => {
     setActivePhoto(current => (current - 1 + photos.length) % photos.length);
@@ -257,7 +253,10 @@ export default function ProductPage() {
                 {uniqueColors.map(color => (
                   <button
                     key={color}
-                    onClick={() => setSelectedColor(color)}
+                    onClick={() => {
+                      setSelectedColor(color);
+                      setSelectedSize(null);
+                    }}
                     className={`px-4 py-2 border rounded-md text-sm transition-all ${
                       selectedColor === color 
                         ? 'border-[var(--color-text)] bg-[var(--color-primary-light)]' 

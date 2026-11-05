@@ -11,6 +11,7 @@ import Contacts from './pages/Contacts';
 import Register from './pages/Register';
 import Login from './pages/Login';
 import Account from './pages/Account';
+import AuthCallback from './pages/AuthCallback';
 import AdminLayout from './pages/admin/AdminLayout';
 import AdminOrders from './pages/admin/AdminOrders';
 import AdminProducts from './pages/admin/AdminProducts';
@@ -53,6 +54,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
         <Route path="/account" element={<Account />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
       </Route>
       
       {/* Admin Login */}
