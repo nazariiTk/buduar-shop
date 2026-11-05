@@ -1,31 +1,79 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #dfc4be;
-  --color-primary-light: #f7e8e6;
-  --color-secondary: #e5c29e;
-  --color-background: #faf5f3;
-  --color-surface: #fdfaf6;
-  --color-text: #4a3f3d;
-  --color-text-light: #786c69;
+  /* Канонічна палітра «Французький будуар XIX століття» */
+  --color-ivory: #F6F0E6;
+  --color-dusty-rose: #D9B8B0;
+  --color-burgundy: #6B1F2A;
+  --color-antique-gold: #B8975A;
+  --color-graphite: #2B2625;
+
+  /* Семантичні токени (контраст тексту перевірено за WCAG AA >= 4.5:1) */
+  --color-background: #F6F0E6;
+  --color-surface: #FAF6EF;
+  --color-surface-muted: #EFE6D8;
+  --color-text: #2B2625;
+  --color-text-light: #5C524F;
+  --color-primary: #6B1F2A;
+  --color-primary-hover: #561821;
+  --color-primary-light: #EADCD9;
+  --color-on-primary: #F6F0E6;
+  --color-secondary: #D9B8B0;
+  --color-border: #B8975A;
+  --color-success: #2E5A36;
+  --color-danger: #6B1F2A;
+  --color-overlay: rgb(43 38 37 / 0.45);
+
+  /* Типографіка */
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-body: "EB Garamond", Georgia, serif;
 }
 
-body {
-  background-color: var(--color-background);
-  color: var(--color-text);
-  font-family: ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@layer base {
+  html {
+    font-size: 17px;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-text);
+    font-family: var(--font-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    color: var(--color-text);
+    line-height: 1.2;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  color: var(--color-text);
+.boudoir-photo {
+  filter: sepia(0.05) contrast(0.98) brightness(0.99);
 }
 
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
