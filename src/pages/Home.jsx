@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import ProductCard from '../components/ProductCard';
+import BoudoirOrnament from '../components/BoudoirOrnament';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '../lib/supabase';
 
@@ -157,34 +158,41 @@ export default function Home() {
         </script>
       </Helmet>
       {/* Hero Section */}
-      <section className="relative bg-[var(--color-primary-light)] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="py-24 md:py-32 lg:py-40 flex flex-col items-center text-center">
-            {/* Ornament Placeholder */}
-            <div className="mb-8 opacity-80 w-32 h-16 bg-contain bg-center bg-no-repeat" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 50\'%3E%3Cpath fill=\'%23ffffff\' d=\'M50,10 C60,30 80,40 90,20 C80,10 60,20 50,40 C40,20 20,10 10,20 C20,40 40,30 50,10 Z\'/%3E%3C/svg%3E")' }}></div>
+      <section className="py-8 md:py-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="bg-surface border border-border/40 relative overflow-hidden px-6 py-20 md:py-28 lg:py-36 flex flex-col items-center text-center">
+          <BoudoirOrnament variant="corner" className="w-16 h-16 text-border/70 absolute top-4 left-4 pointer-events-none" />
+          <BoudoirOrnament variant="corner" className="w-16 h-16 text-border/70 absolute top-4 right-4 -scale-x-100 pointer-events-none" />
+          <BoudoirOrnament variant="corner" className="w-16 h-16 text-border/70 absolute bottom-4 left-4 -scale-y-100 pointer-events-none" />
+          <BoudoirOrnament variant="corner" className="w-16 h-16 text-border/70 absolute bottom-4 right-4 -scale-x-100 -scale-y-100 pointer-events-none" />
 
-            <h1 className="text-4xl md:text-6xl font-serif text-[var(--color-text)] mb-6">
-              Бутик розкішної білизни
+          <div className="max-w-3xl mx-auto border border-border/30 rounded-t-full px-6 sm:px-14 pt-14 pb-12 bg-background/60">
+            <p className="text-xs uppercase tracking-[0.3em] text-text-light mb-4 font-serif">
+              Бутик вишуканої білизни • Est. XIX
+            </p>
+            <BoudoirOrnament variant="divider" className="w-44 mx-auto mb-6 text-border" />
+
+            <h1 className="text-4xl md:text-6xl font-serif text-text mb-6 leading-tight">
+              Витончене <span className="italic font-normal text-primary">мистецтво</span> спокуси
             </h1>
-            <p className="text-lg md:text-xl text-[var(--color-text-light)] max-w-2xl mb-10">
-              Створено для вашого комфорту та впевненості. Відкрийте для себе колекцію ексклюзивних піжам, білизни та купальників.
+            <p className="text-lg md:text-xl text-text-light max-w-2xl mx-auto mb-10 leading-relaxed">
+              Створено для вашого комфорту та впевненості. Відкрийте для себе колекцію ексклюзивних піжам, білизни та купальників у атмосфері французького будуару.
             </p>
             <Link
               to="/catalog"
-              className="inline-block bg-[var(--color-text)] text-[var(--color-background)] px-8 py-4 text-sm font-medium tracking-widest uppercase hover:bg-opacity-90 transition-all"
+              className="inline-block bg-primary text-on-primary hover:bg-primary-hover border border-border/40 px-9 py-4 text-sm font-serif uppercase tracking-widest transition-all duration-500"
             >
-              Перейти до каталогу
+              Переглянути колекцію
             </Link>
           </div>
         </div>
       </section>
 
       {/* Featured Products */}
-      <section className="py-20">
+      <section className="py-16 md:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-serif mb-4">Популярні моделі</h2>
-            <div className="w-16 h-[1px] bg-[var(--color-primary)] mx-auto"></div>
+            <h2 className="text-3xl md:text-4xl font-serif text-text">Популярні моделі</h2>
+            <BoudoirOrnament variant="divider" className="w-36 mx-auto mt-3 text-border" />
           </div>
 
           <div className={`flex justify-center gap-3 mb-10 overflow-x-auto pb-2 scrollbar-hide ${loading ? 'pointer-events-none' : ''}`}>
@@ -192,10 +200,10 @@ export default function Home() {
               <button
                 key={cat.name}
                 onClick={() => setActiveCategory(cat.slug)}
-                className={`px-5 py-2.5 border rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                className={`px-6 py-2.5 border text-sm font-serif tracking-wider uppercase transition-all duration-300 whitespace-nowrap ${
                   activeCategory === cat.slug
-                    ? 'bg-gray-800 border-gray-800 text-white shadow-md'
-                    : 'bg-white border-gray-200 text-gray-700 hover:border-gray-400'
+                    ? 'bg-primary border-primary text-on-primary shadow-sm'
+                    : 'bg-surface border-border/40 text-text hover:border-primary'
                 }`}
               >
                 {cat.name}
@@ -204,17 +212,17 @@ export default function Home() {
           </div>
 
           {loading && previousProducts.length === 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
               {[...Array(8)].map((_, i) => (
                 <div key={i} className="animate-pulse">
-                  <div className="aspect-[3/4] bg-gray-200 rounded-lg mb-3"></div>
-                  <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="aspect-[3/4] bg-surface-muted border border-border/20 mb-3"></div>
+                  <div className="h-4 bg-surface-muted border border-border/20 w-3/4 mb-2"></div>
+                  <div className="h-4 bg-surface-muted border border-border/20 w-1/2"></div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 transition-opacity duration-300 ${
+            <div className={`grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 transition-opacity duration-300 ${
               loading ? 'opacity-50 pointer-events-none' : 'opacity-100'
             }`}>
               {(loading ? previousProducts : products).map(product => (
@@ -226,7 +234,7 @@ export default function Home() {
           <div className="text-center mt-12">
             <Link
               to="/catalog"
-              className="inline-block border border-[var(--color-text)] text-[var(--color-text)] px-8 py-3 text-sm font-medium tracking-widest uppercase hover:bg-[var(--color-text)] hover:text-[var(--color-background)] transition-all"
+              className="inline-block border border-border/60 bg-surface text-text px-8 py-3.5 text-sm font-serif tracking-widest uppercase hover:bg-primary hover:border-primary hover:text-on-primary transition-all duration-300"
             >
               Переглянути всі
             </Link>

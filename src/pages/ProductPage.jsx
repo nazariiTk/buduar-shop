@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCartStore } from '../store/useCartStore';
+import { formatPrice } from '../utils/format';
 
 export default function ProductPage() {
   const { slug } = useParams();
@@ -15,9 +16,20 @@ export default function ProductPage() {
   
   const [loading, setLoading] = useState(true);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [brokenUrls, setBrokenUrls] = useState(() => new Set());
   const [selectedColor, setSelectedColor] = useState(null);
   const [selectedSize, setSelectedSize] = useState(null);
   const [added, setAdded] = useState(false);
+
+  const markUrlBroken = (url) => {
+    if (!url) return;
+    setBrokenUrls(prev => {
+      if (prev.has(url)) return prev;
+      const next = new Set(prev);
+      next.add(url);
+      return next;
+    });
+  };
 
   useEffect(() => {
     async function loadProduct() {
@@ -114,11 +126,11 @@ export default function ProductPage() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 animate-pulse">
         <div className="flex flex-col md:flex-row gap-12">
-          <div className="w-full md:w-3/5 bg-gray-200 aspect-[3/4] rounded-lg"></div>
+          <div className="w-full md:w-3/5 bg-surface-muted border border-border/30 aspect-[3/4]"></div>
           <div className="w-full md:w-2/5 space-y-6">
-            <div className="h-10 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-6 bg-gray-200 rounded w-1/4"></div>
-            <div className="h-12 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-10 bg-surface-muted border border-border/20 w-3/4"></div>
+            <div className="h-6 bg-surface-muted border border-border/20 w-1/4"></div>
+            <div className="h-12 bg-surface-muted border border-border/20 w-1/3"></div>
           </div>
         </div>
       </div>
@@ -128,8 +140,8 @@ export default function ProductPage() {
   if (!product || product.is_active === false) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
-        <h1 className="text-3xl font-serif text-[var(--color-text)] mb-4">Товар недоступний</h1>
-        <p className="text-[var(--color-text-light)]">Можливо, він був знятий з продажу або посилання застаріло.</p>
+        <h1 className="text-3xl font-serif text-text mb-4">Товар недоступний</h1>
+        <p className="text-text-light">Можливо, він був знятий з продажу або посилання застаріло.</p>
       </div>
     );
   }
@@ -188,37 +200,39 @@ export default function ProductPage() {
       <div className="flex flex-col md:flex-row gap-12">
         {/* Left Column - Photos */}
         <div className="w-full md:w-3/5">
-          <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-[var(--color-primary-light)] mb-4">
-            {photos.length > 0 ? (
-              <>
-                <img
-                  src={photos[activePhoto].url}
-                  alt={photos[activePhoto].alt_text || product.name}
-                  className="w-full h-full object-cover transition-opacity duration-300"
-                />
-                {photos.length > 1 && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={showPreviousPhoto}
-                      aria-label="Попередня фотографія"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 p-1 text-white/60 hover:text-white/95 transition-colors"
-                    >
-                      <ChevronLeft className="h-7 w-7 drop-shadow-md" strokeWidth={1.5} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={showNextPhoto}
-                      aria-label="Наступна фотографія"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-white/60 hover:text-white/95 transition-colors"
-                    >
-                      <ChevronRight className="h-7 w-7 drop-shadow-md" strokeWidth={1.5} />
-                    </button>
-                  </>
-                )}
-              </>
+          <div className="relative aspect-[3/4] border border-border/30 overflow-hidden bg-surface-muted mb-4">
+            {photos.length > 0 && photos[activePhoto]?.url && !brokenUrls.has(photos[activePhoto].url) ? (
+              <img
+                src={photos[activePhoto].url}
+                alt={photos[activePhoto].alt_text || product.name}
+                onError={() => markUrlBroken(photos[activePhoto].url)}
+                className="w-full h-full object-cover transition-opacity duration-300 boudoir-photo"
+              />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-[var(--color-primary)]">БУДУАР</div>
+              <div className="w-full h-full flex flex-col items-center justify-center bg-surface text-primary p-6 text-center">
+                <span className="font-serif text-2xl tracking-[0.25em] uppercase">БУДУАР</span>
+                <span className="text-xs text-text-light mt-2 tracking-widest uppercase">Фото очікується</span>
+              </div>
+            )}
+            {photos.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={showPreviousPhoto}
+                  aria-label="Попередня фотографія"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 p-2 bg-surface/80 border border-border/40 text-text hover:bg-primary hover:text-on-primary transition-colors"
+                >
+                  <ChevronLeft className="h-6 w-6" strokeWidth={1.5} />
+                </button>
+                <button
+                  type="button"
+                  onClick={showNextPhoto}
+                  aria-label="Наступна фотографія"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-surface/80 border border-border/40 text-text hover:bg-primary hover:text-on-primary transition-colors"
+                >
+                  <ChevronRight className="h-6 w-6" strokeWidth={1.5} />
+                </button>
+              </>
             )}
           </div>
           
@@ -228,9 +242,24 @@ export default function ProductPage() {
                 <button 
                   key={photo.id || idx}
                   onClick={() => setActivePhoto(idx)}
-                  className={`relative w-20 aspect-[3/4] rounded-md overflow-hidden flex-shrink-0 transition-all ${activePhoto === idx ? 'ring-2 ring-[var(--color-text)]' : 'opacity-70 hover:opacity-100'}`}
+                  className={`relative w-20 aspect-[3/4] border overflow-hidden flex-shrink-0 transition-all ${
+                    activePhoto === idx
+                      ? 'border-primary ring-1 ring-primary opacity-100'
+                      : 'border-border/30 opacity-70 hover:opacity-100'
+                  }`}
                 >
-                  <img src={photo.url} alt="Thumbnail" className="w-full h-full object-cover" />
+                  {photo.url && !brokenUrls.has(photo.url) ? (
+                    <img
+                      src={photo.url}
+                      alt={photo.alt_text || `${product.name} — фото ${idx + 1}`}
+                      onError={() => markUrlBroken(photo.url)}
+                      className="w-full h-full object-cover boudoir-photo"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-surface text-primary text-[10px] font-serif tracking-widest">
+                      БУДУАР
+                    </div>
+                  )}
                 </button>
               ))}
             </div>
@@ -239,17 +268,17 @@ export default function ProductPage() {
 
         {/* Right Column - Info */}
         <div className="w-full md:w-2/5 flex flex-col">
-          <p className="text-sm text-[var(--color-text-light)] uppercase tracking-wider mb-2">{product.category}</p>
-          <h1 className="text-4xl font-serif text-[var(--color-text)] mb-4">{product.name}</h1>
-          <p className="text-3xl font-medium mb-8">{displayPrice} грн</p>
+          <p className="text-sm text-text-light uppercase tracking-wider mb-2">{product.category}</p>
+          <h1 className="text-4xl font-serif text-text mb-4">{product.name}</h1>
+          <p className="text-3xl font-serif text-primary font-medium mb-8">{formatPrice(displayPrice)}</p>
           
-          <hr className="border-[var(--color-primary)] border-opacity-30 mb-8" />
+          <hr className="border-border/30 mb-8" />
 
           {/* Color Selection */}
           {uniqueColors.length > 0 && (
             <div className="mb-8">
-              <h3 className="font-medium mb-3">Колір: <span className="font-normal text-[var(--color-text-light)]">{selectedColor}</span></h3>
-              <div className="flex gap-3">
+              <h3 className="font-medium text-text mb-3">Колір: <span className="font-normal text-text-light">{selectedColor}</span></h3>
+              <div className="flex flex-wrap gap-3">
                 {uniqueColors.map(color => (
                   <button
                     key={color}
@@ -257,10 +286,10 @@ export default function ProductPage() {
                       setSelectedColor(color);
                       setSelectedSize(null);
                     }}
-                    className={`px-4 py-2 border rounded-md text-sm transition-all ${
+                    className={`px-4 py-2 border text-sm transition-all ${
                       selectedColor === color 
-                        ? 'border-[var(--color-text)] bg-[var(--color-primary-light)]' 
-                        : 'border-transparent bg-gray-100 hover:bg-gray-200'
+                        ? 'border-primary bg-primary-light text-text font-medium' 
+                        : 'border-border/30 bg-surface text-text hover:border-primary'
                     }`}
                   >
                     {color}
@@ -273,7 +302,7 @@ export default function ProductPage() {
           {/* Size Selection */}
           {availableSizes.length > 0 && (
             <div className="mb-8">
-              <h3 className="font-medium mb-3">Розмір: <span className="font-normal text-[var(--color-text-light)]">{selectedSize || 'Оберіть розмір'}</span></h3>
+              <h3 className="font-medium text-text mb-3">Розмір: <span className="font-normal text-text-light">{selectedSize || 'Оберіть розмір'}</span></h3>
               <div className="flex flex-wrap gap-3">
                 {Object.values(availableSizes.reduce((acc, variant) => {
                   const key = variant.size;
@@ -300,10 +329,10 @@ export default function ProductPage() {
                       onClick={() => setSelectedSize(variant.size)}
                       className={`px-4 py-2 border text-sm transition-all ${
                         selectedSize === variant.size 
-                          ? 'border-[var(--color-text)] bg-[var(--color-text)] text-[var(--color-background)]' 
+                          ? 'border-primary bg-primary text-on-primary' 
                           : isOutOfStock
-                            ? 'border-gray-200 text-gray-400 opacity-50'
-                            : 'border-[var(--color-primary)] hover:border-[var(--color-text)]'
+                            ? 'border-border/20 bg-surface-muted text-text-light opacity-50'
+                            : 'border-border/40 bg-surface text-text hover:border-primary'
                       }`}
                     >
                       {variant.size}
@@ -316,9 +345,9 @@ export default function ProductPage() {
 
           {/* Availability */}
           {selectedSize && (
-            <div className="mb-8 bg-[var(--color-primary-light)] bg-opacity-30 p-4 rounded-md flex justify-between items-center">
-              <span className="font-medium text-sm uppercase tracking-wider">Наявність:</span>
-              <span className={totalAvailabilityQty > 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
+            <div className="mb-8 bg-surface border border-border/30 p-4 flex justify-between items-center">
+              <span className="font-medium text-text text-sm uppercase tracking-wider">Наявність:</span>
+              <span className={totalAvailabilityQty > 0 ? 'text-success font-medium' : 'text-danger font-medium'}>
                 {totalAvailabilityQty > 0 ? 'Є в наявності ✓' : 'Немає в наявності ✗'}
               </span>
             </div>
@@ -326,9 +355,9 @@ export default function ProductPage() {
 
           {/* Description */}
           {product.description && (
-            <div className="mb-8 pt-6 border-t border-[var(--color-primary)] border-opacity-30">
-              <h4 className="font-serif text-xl mb-4">Опис</h4>
-              <p className="text-[var(--color-text-light)] text-sm leading-relaxed whitespace-pre-line">
+            <div className="mb-8 pt-6 border-t border-border/30">
+              <h4 className="font-serif text-xl text-text mb-4">Опис</h4>
+              <p className="text-text-light text-sm leading-relaxed whitespace-pre-line">
                 {product.description}
               </p>
             </div>
@@ -338,17 +367,15 @@ export default function ProductPage() {
           <button 
             disabled={!selectedSize || !selectedVariant || totalAvailabilityQty <= 0}
             onClick={handleAddToCart}
-            className={`w-full py-4 text-sm font-medium tracking-widest uppercase transition-colors ${
-              totalAvailabilityQty <= 0
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : !selectedSize 
-                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                  : added 
-                    ? 'bg-green-600 text-white' 
-                    : 'bg-[var(--color-text)] text-[var(--color-background)] hover:bg-opacity-90 shadow-sm'
+            className={`w-full py-4 text-sm font-serif tracking-widest uppercase transition-colors ${
+              totalAvailabilityQty <= 0 || !selectedSize
+                ? 'bg-surface-muted text-text-light border border-border/20 cursor-not-allowed'
+                : added 
+                  ? 'bg-success text-on-primary' 
+                  : 'bg-primary text-on-primary hover:bg-primary-hover shadow-sm'
             }`}
           >
-            {totalAvailabilityQty <= 0 ? 'Немає в наявності' : added ? '✓ Додано' : 'Додати в кошик'}
+            {totalAvailabilityQty <= 0 ? 'Немає в наявності' : added ? 'Додано в кошик ✓' : 'Додати в кошик'}
           </button>
         </div>
       </div>

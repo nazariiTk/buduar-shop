@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { Search, X, Filter } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
+import BoudoirOrnament from '../components/BoudoirOrnament';
 import { supabase } from '../lib/supabase';
 import { getName } from '../utils/format';
 
@@ -265,7 +266,8 @@ export default function Catalog() {
         <meta name="description" content="Великий вибір білизни, піжам, купальників та аксесуарів. Доставка по всій Україні." />
       </Helmet>
       
-      <h1 className="text-3xl font-serif mb-8">Каталог товарів</h1>
+      <h1 className="text-3xl md:text-4xl font-serif text-text mb-2">Каталог товарів</h1>
+      <BoudoirOrnament variant="divider" className="w-36 mb-6 text-border" />
 
       <div className="flex gap-8">
         {/* Бічна панель — десктоп */}
@@ -308,33 +310,33 @@ export default function Catalog() {
           {/* Мобільний пошук і фільтр */}
           <div className="lg:hidden mb-4 flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-light" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setPage(0); }}
                 placeholder="Пошук..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-full text-sm focus:outline-none"
+                className="w-full pl-9 pr-4 py-2 bg-surface border border-border/40 text-text placeholder:text-text-light text-sm focus:outline-none focus-visible:border-primary transition-colors"
               />
             </div>
             <button
               onClick={() => setMobileFiltersOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-full text-sm"
+              className="flex items-center gap-2 px-4 py-2 bg-surface border border-border/40 text-text text-sm hover:border-primary focus-visible:outline-none focus-visible:border-primary transition-colors"
             >
-              <Filter className="h-4 w-4" />
+              <Filter className="h-4 w-4 text-primary" />
               Фільтри
             </button>
           </div>
 
           {/* Активний фільтр — показуємо що обрано */}
           {selectedCategory && !searchQuery && (
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-gray-500">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-sm font-serif tracking-wide text-text">
                 {getName(categories.find(c => c.slug === selectedCategory))}
               </span>
               <button
                 onClick={() => applyCategoryChange(null)}
-                className="text-xs text-gray-400 hover:text-gray-600"
+                className="text-xs text-text-light hover:text-primary focus-visible:outline-none focus-visible:text-primary transition-colors"
               >
                 ✕ Скинути
               </button>
@@ -344,27 +346,27 @@ export default function Catalog() {
         {loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-8">
             {[...Array(8)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-white rounded-lg overflow-hidden shadow-sm">
-                <div className="aspect-[3/4] bg-gray-200"></div>
+              <div key={i} className="animate-pulse bg-surface border border-border/30 overflow-hidden">
+                <div className="aspect-[3/4] bg-surface-muted"></div>
                 <div className="p-4 space-y-3">
-                  <div className="h-5 bg-gray-200 rounded w-3/4"></div>
-                  <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                  <div className="h-5 bg-surface-muted w-3/4"></div>
+                  <div className="h-4 bg-surface-muted w-1/2"></div>
                   <div className="flex justify-between items-center pt-2">
-                    <div className="h-5 bg-gray-200 rounded w-1/3"></div>
-                    <div className="h-8 bg-gray-200 rounded w-20"></div>
+                    <div className="h-5 bg-surface-muted w-1/3"></div>
+                    <div className="h-8 bg-surface-muted w-20"></div>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-12">
+          <div className="text-center py-12 bg-surface border border-border/30 px-6">
             {searchQuery ? (
               <>
-                <p className="text-xl font-serif text-[var(--color-text-light)] mb-3">
+                <p className="text-xl font-serif text-text mb-3">
                   Нічого не знайдено за запитом «{searchQuery}»
                 </p>
-                <p className="text-sm text-gray-400 mb-8">
+                <p className="text-sm text-text-light mb-8">
                   Спробуйте інший запит або перегляньте категорії
                 </p>
                 <div className="flex flex-wrap justify-center gap-3 max-w-lg mx-auto">
@@ -375,21 +377,21 @@ export default function Catalog() {
                         setSearchQuery('');
                         applyCategoryChange(cat.slug);
                       }}
-                      className="px-4 py-2 border border-gray-200 rounded-full text-sm hover:border-gray-400 bg-white transition-colors"
+                      className="px-4 py-2 border border-border/40 text-text text-sm hover:border-primary bg-background focus-visible:outline-none focus-visible:border-primary transition-colors"
                     >
                       {cat.name}
                     </button>
                   ))}
                   <button
                     onClick={() => { setSearchQuery(''); setPage(0); }}
-                    className="px-4 py-2 bg-gray-800 text-white rounded-full text-sm"
+                    className="px-5 py-2 bg-primary text-on-primary hover:bg-primary-hover text-sm font-serif tracking-wider uppercase focus-visible:outline-none transition-colors"
                   >
                     Показати всі товари
                   </button>
                 </div>
               </>
             ) : (
-              <h2 className="text-2xl font-serif text-[var(--color-text-light)]">
+              <h2 className="text-2xl font-serif text-text-light">
                 Товарів не знайдено
               </h2>
             )}
@@ -407,7 +409,7 @@ export default function Catalog() {
             <button
               onClick={() => { setPage(p => p - 1); window.scrollTo(0, 0); }}
               disabled={page === 0}
-              className="px-4 py-2 border border-gray-200 rounded-full text-sm font-medium disabled:opacity-40 hover:border-gray-400 transition-colors bg-white"
+              className="px-4 py-2 border border-border/40 bg-surface text-text text-sm font-serif tracking-wider disabled:opacity-40 disabled:pointer-events-none hover:border-primary focus-visible:outline-none focus-visible:border-primary transition-colors"
             >
               ← Назад
             </button>
@@ -419,7 +421,7 @@ export default function Catalog() {
                 const showDots = !show && (idx === 1 || idx === total - 2);
 
                 if (showDots) return (
-                  <span key={idx} className="px-2 py-2 text-gray-400 text-sm">...</span>
+                  <span key={idx} className="px-2 py-2 text-text-light text-sm">...</span>
                 );
                 if (!show) return null;
 
@@ -427,10 +429,10 @@ export default function Catalog() {
                   <button
                     key={idx}
                     onClick={() => { setPage(idx); window.scrollTo(0, 0); }}
-                    className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
+                    className={`w-9 h-9 text-sm font-serif transition-colors focus-visible:outline-none ${
                       page === idx
-                        ? 'bg-gray-800 text-white'
-                        : 'bg-white border border-gray-200 text-gray-700 hover:border-gray-400'
+                        ? 'bg-primary text-on-primary border border-primary'
+                        : 'bg-surface border border-border/40 text-text hover:border-primary'
                     }`}
                   >
                     {idx + 1}
@@ -442,7 +444,7 @@ export default function Catalog() {
             <button
               onClick={() => { setPage(p => p + 1); window.scrollTo(0, 0); }}
               disabled={page >= Math.ceil(totalCount / PAGE_SIZE) - 1}
-              className="px-4 py-2 border border-gray-200 rounded-full text-sm font-medium disabled:opacity-40 hover:border-gray-400 transition-colors bg-white"
+              className="px-4 py-2 border border-border/40 bg-surface text-text text-sm font-serif tracking-wider disabled:opacity-40 disabled:pointer-events-none hover:border-primary focus-visible:outline-none focus-visible:border-primary transition-colors"
             >
               Вперед →
             </button>
@@ -450,7 +452,7 @@ export default function Catalog() {
         )}
 
         {totalCount > 0 && (
-          <p className="text-center text-sm text-gray-500 mt-4">
+          <p className="text-center text-sm text-text-light mt-4">
             Показано {products.length} з {totalCount} товарів
           </p>
         )}
@@ -460,12 +462,15 @@ export default function Catalog() {
       {/* Мобільний drawer з фільтрами */}
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black bg-opacity-40"
+          <div className="absolute inset-0 bg-overlay"
             onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white overflow-y-auto p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-medium">Фільтри</h3>
-              <button onClick={() => setMobileFiltersOpen(false)}>
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-surface border-l border-border/40 overflow-y-auto p-6">
+            <div className="flex justify-between items-center mb-6 pb-3 border-b border-border/30">
+              <h3 className="font-serif text-xl text-text">Фільтри</h3>
+              <button
+                onClick={() => setMobileFiltersOpen(false)}
+                className="text-text-light hover:text-primary focus-visible:outline-none transition-colors"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
