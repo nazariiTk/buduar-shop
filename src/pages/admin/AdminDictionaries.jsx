@@ -96,35 +96,35 @@ export default function AdminDictionaries() {
   };
 
   const renderTableHeaders = () => {
-    if (activeTab === 'brands') return <th>Назва</th>;
-    if (activeTab === 'colors') return <><th>Назва (УКР)</th><th>HEX-код</th></>;
-    if (activeTab === 'sizes') return <><th>Значення</th><th>Тип</th><th>Сортування</th></>;
-    if (activeTab === 'materials') return <><th>Назва (УКР)</th><th>Сортування</th></>;
+    if (activeTab === 'brands') return <th className="p-4">Назва</th>;
+    if (activeTab === 'colors') return <><th className="p-4">Назва</th><th className="p-4">HEX-код</th></>;
+    if (activeTab === 'sizes') return <><th className="p-4">Значення</th><th className="p-4">Тип</th><th className="p-4">Сортування</th></>;
+    if (activeTab === 'materials') return <><th className="p-4">Назва</th><th className="p-4">Сортування</th></>;
   };
 
   const renderEditRow = () => {
     return (
-      <tr className="bg-gray-50 border-b border-gray-100">
-        <td colSpan="4" className="p-4">
-          <div className="flex gap-4 items-end">
+      <tr className="bg-surface-muted/40 border-b border-border/30">
+        <td colSpan="5" className="p-4">
+          <div className="flex flex-wrap gap-4 items-end">
             {activeTab === 'brands' && (
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1">Назва бренду</label>
-                <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-medium text-text-light mb-1">Назва бренду</label>
+                <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
               </div>
             )}
 
             {activeTab === 'colors' && (
               <>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Назва (укр)</label>
-                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-text-light mb-1">Назва кольору</label>
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                 </div>
-                <div className="w-32">
-                  <label className="block text-xs text-gray-500 mb-1">HEX колір</label>
+                <div className="w-36">
+                  <label className="block text-xs font-medium text-text-light mb-1">HEX колір</label>
                   <div className="flex items-center gap-2">
-                    <input type="color" value={editForm.hex || '#ffffff'} onChange={e => setEditForm({...editForm, hex: e.target.value})} className="h-9 w-9 p-0 border-0 rounded cursor-pointer" />
-                    <input type="text" value={editForm.hex || ''} onChange={e => setEditForm({...editForm, hex: e.target.value})} className="w-full border rounded px-2 py-2 text-sm" />
+                    <input type="color" value={editForm.hex || '#ffffff'} onChange={e => setEditForm({...editForm, hex: e.target.value})} className="h-9 w-9 p-0 border border-border/30 rounded cursor-pointer" />
+                    <input type="text" value={editForm.hex || ''} onChange={e => setEditForm({...editForm, hex: e.target.value})} className="w-full border border-border/40 rounded px-2 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                   </div>
                 </div>
               </>
@@ -132,13 +132,13 @@ export default function AdminDictionaries() {
 
             {activeTab === 'sizes' && (
               <>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Значення</label>
-                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                <div className="flex-1 min-w-[150px]">
+                  <label className="block text-xs font-medium text-text-light mb-1">Значення</label>
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                 </div>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Тип</label>
-                  <select value={editForm.size_type || 'standard'} onChange={e => setEditForm({...editForm, size_type: e.target.value})} className="w-full border rounded px-3 py-2 text-sm">
+                <div className="flex-1 min-w-[150px]">
+                  <label className="block text-xs font-medium text-text-light mb-1">Тип</label>
+                  <select value={editForm.size_type || 'standard'} onChange={e => setEditForm({...editForm, size_type: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary">
                     <option value="standard">Стандартні (XS, S...)</option>
                     <option value="numeric">Числові (36, 38...)</option>
                     <option value="bra">Бюстгальтери (75B...)</option>
@@ -147,30 +147,30 @@ export default function AdminDictionaries() {
                   </select>
                 </div>
                 <div className="w-24">
-                  <label className="block text-xs text-gray-500 mb-1">Сорт.</label>
-                  <input type="number" value={editForm.sort_order || 0} onChange={e => setEditForm({...editForm, sort_order: parseInt(e.target.value) || 0})} className="w-full border rounded px-3 py-2 text-sm" />
+                  <label className="block text-xs font-medium text-text-light mb-1">Сорт.</label>
+                  <input type="number" value={editForm.sort_order || 0} onChange={e => setEditForm({...editForm, sort_order: parseInt(e.target.value) || 0})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                 </div>
               </>
             )}
 
             {activeTab === 'materials' && (
               <>
-                <div className="flex-1">
-                  <label className="block text-xs text-gray-500 mb-1">Назва (укр)</label>
-                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border rounded px-3 py-2 text-sm" />
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-text-light mb-1">Назва матеріалу</label>
+                  <input type="text" value={editForm.name || ''} onChange={e => setEditForm({...editForm, name: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                 </div>
                 <div className="w-24">
-                  <label className="block text-xs text-gray-500 mb-1">Сорт.</label>
-                  <input type="number" value={editForm.sort_order || 0} onChange={e => setEditForm({...editForm, sort_order: parseInt(e.target.value) || 0})} className="w-full border rounded px-3 py-2 text-sm" />
+                  <label className="block text-xs font-medium text-text-light mb-1">Сорт.</label>
+                  <input type="number" value={editForm.sort_order || 0} onChange={e => setEditForm({...editForm, sort_order: parseInt(e.target.value) || 0})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary" />
                 </div>
               </>
             )}
 
             <div className="flex gap-2">
-              <button onClick={handleSave} disabled={isSaving} className="bg-green-600 text-white p-2 rounded hover:bg-green-700">
+              <button onClick={handleSave} disabled={isSaving} className="bg-primary text-on-primary p-2 rounded hover:bg-primary-hover transition-colors shadow-sm" title="Зберегти">
                 {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
               </button>
-              <button onClick={handleCancel} className="bg-gray-200 text-gray-700 p-2 rounded hover:bg-gray-300">
+              <button onClick={handleCancel} className="border border-border/40 bg-surface text-text p-2 rounded hover:bg-surface-muted transition-colors" title="Скасувати">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -182,16 +182,16 @@ export default function AdminDictionaries() {
 
   const renderRow = (item) => {
     return (
-      <tr key={item.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-        {activeTab === 'brands' && <td className="p-4">{item.name}</td>}
+      <tr key={item.id} className="border-b border-border/20 hover:bg-surface-muted/30 transition-colors">
+        {activeTab === 'brands' && <td className="p-4 font-medium text-text">{item.name}</td>}
         
         {activeTab === 'colors' && (
           <>
-            <td className="p-4">{item.name}</td>
+            <td className="p-4 font-medium text-text">{item.name}</td>
             <td className="p-4">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full border border-gray-200" style={{ backgroundColor: item.hex || '#fff' }}></div>
-                <span className="text-sm text-gray-500 font-mono">{item.hex}</span>
+                <div className="w-6 h-6 rounded-full border border-border/30 shadow-xs" style={{ backgroundColor: item.hex || '#fff' }}></div>
+                <span className="text-sm text-text-light font-mono">{item.hex}</span>
               </div>
             </td>
           </>
@@ -199,24 +199,24 @@ export default function AdminDictionaries() {
 
         {activeTab === 'sizes' && (
           <>
-            <td className="p-4 font-medium">{item.name}</td>
-            <td className="p-4 text-sm text-gray-500">{item.size_type}</td>
-            <td className="p-4 text-sm text-gray-500">{item.sort_order}</td>
+            <td className="p-4 font-medium text-text">{item.name}</td>
+            <td className="p-4 text-sm text-text-light">{item.size_type}</td>
+            <td className="p-4 text-sm text-text-light font-mono">{item.sort_order}</td>
           </>
         )}
 
         {activeTab === 'materials' && (
           <>
-            <td className="p-4">{item.name}</td>
-            <td className="p-4 text-sm text-gray-500">{item.sort_order}</td>
+            <td className="p-4 font-medium text-text">{item.name}</td>
+            <td className="p-4 text-sm text-text-light font-mono">{item.sort_order}</td>
           </>
         )}
 
-        <td className="p-4 text-right">
-          <button onClick={() => handleEdit(item)} className="p-2 text-blue-600 hover:bg-blue-50 rounded mr-2">
+        <td className="p-4 text-right whitespace-nowrap">
+          <button onClick={() => handleEdit(item)} className="p-1.5 text-text-light hover:text-primary hover:bg-surface-muted rounded mr-1 transition-colors" title="Редагувати">
             <Edit2 className="w-4 h-4" />
           </button>
-          <button onClick={() => handleDelete(item.id)} className="p-2 text-red-600 hover:bg-red-50 rounded">
+          <button onClick={() => handleDelete(item.id)} className="p-1.5 text-danger/80 hover:text-danger hover:bg-danger/10 rounded transition-colors" title="Видалити">
             <Trash2 className="w-4 h-4" />
           </button>
         </td>
@@ -234,27 +234,27 @@ export default function AdminDictionaries() {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-serif text-gray-800">Довідники</h1>
+        <h1 className="text-3xl font-serif text-text">Довідники</h1>
         <button
           onClick={handleCreateNew}
           disabled={editingId === 'new'}
-          className="flex items-center gap-2 bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium hover:bg-gray-800 disabled:opacity-50"
+          className="flex items-center gap-2 bg-primary text-on-primary px-4 py-2 rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-sm"
         >
           <Plus className="w-4 h-4" />
           Додати запис
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex border-b border-gray-200 bg-gray-50">
+      <div className="bg-surface rounded-lg shadow-sm border border-border/30 overflow-hidden">
+        <div className="flex border-b border-border/30 bg-surface-muted/30">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => { setActiveTab(tab.id); setEditingId(null); }}
               className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.id 
-                  ? 'border-gray-900 text-gray-900 bg-white' 
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
+                  ? 'border-primary text-primary bg-surface font-semibold' 
+                  : 'border-transparent text-text-light hover:text-text'
               }`}
             >
               {tab.label}
@@ -263,25 +263,25 @@ export default function AdminDictionaries() {
         </div>
 
         <div className="p-0 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse text-sm">
             <thead>
-              <tr className="bg-gray-50 text-xs text-gray-500 uppercase border-b border-gray-200">
+              <tr className="bg-surface-muted/60 text-xs text-text-light uppercase border-b border-border/30">
                 {renderTableHeaders()}
-                <th className="p-4 w-24">Дії</th>
+                <th className="p-4 w-24 text-right">Дії</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border/20 text-text">
               {editingId === 'new' && renderEditRow()}
               
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="p-8 text-center text-gray-400">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto" />
+                  <td colSpan="5" className="p-8 text-center text-text-light">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-primary" />
                   </td>
                 </tr>
               ) : items.length === 0 && editingId !== 'new' ? (
                 <tr>
-                  <td colSpan="5" className="p-8 text-center text-gray-500">
+                  <td colSpan="5" className="p-8 text-center text-text-light">
                     Немає записів
                   </td>
                 </tr>

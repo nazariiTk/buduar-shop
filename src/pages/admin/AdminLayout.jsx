@@ -21,11 +21,11 @@ export default function AdminLayout() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-background text-text flex">
       {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-gray-200 hidden md:flex flex-col">
-        <div className="h-20 flex items-center px-6 border-b border-gray-200">
-          <Link to="/admin" className="text-xl font-bold tracking-widest text-[var(--color-text)]">
+      <aside className="w-64 bg-surface border-r border-border/30 hidden md:flex flex-col">
+        <div className="h-20 flex items-center px-6 border-b border-border/30">
+          <Link to="/admin" className="text-xl font-serif font-bold tracking-widest text-primary">
             БУДУАР ADMIN
           </Link>
         </div>
@@ -41,8 +41,8 @@ export default function AdminLayout() {
                 to={item.path}
                 className={`flex items-center gap-3 px-4 py-3 rounded-md transition-colors ${
                   isActive 
-                    ? 'bg-[var(--color-primary-light)] text-[var(--color-text)] font-medium' 
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-[var(--color-text)]'
+                    ? 'bg-primary text-on-primary font-medium shadow-sm' 
+                    : 'text-text-light hover:bg-surface-muted hover:text-text'
                 }`}
               >
                 <Icon className="h-5 w-5" />
@@ -55,10 +55,10 @@ export default function AdminLayout() {
         {/* AI Metrics Widget */}
         <AiMetricsWidget />
 
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="p-4 border-t border-border/30 bg-surface">
           <button 
             onClick={handleLogout} 
-            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors w-full"
+            className="flex items-center gap-2 text-sm font-medium text-text-light hover:text-primary transition-colors w-full"
           >
             <LogOut className="h-4 w-4" />
             Вийти
@@ -69,16 +69,16 @@ export default function AdminLayout() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col min-w-0">
         {/* Mobile Header */}
-        <div className="md:hidden h-16 bg-white border-b border-gray-200 flex items-center px-4 justify-between">
-          <Link to="/admin" className="text-lg font-bold tracking-widest text-[var(--color-text)]">
+        <div className="md:hidden h-16 bg-surface border-b border-border/30 flex items-center px-4 justify-between">
+          <Link to="/admin" className="text-lg font-serif font-bold tracking-widest text-primary">
             БУДУАР ADMIN
           </Link>
-          <button onClick={handleLogout} className="p-2 text-gray-500 hover:text-gray-800">
+          <button onClick={handleLogout} className="p-2 text-text-light hover:text-primary">
             <LogOut className="h-5 w-5" />
           </button>
         </div>
         
-        <div className="p-4 sm:p-8 flex-1 overflow-auto">
+        <div className="p-4 sm:p-8 flex-1 overflow-auto bg-background">
           <Outlet />
         </div>
       </main>
@@ -101,14 +101,14 @@ function AiMetricsWidget() {
   const hasMetrics = metrics.requestsRemaining || metrics.tokensRemaining;
 
   return (
-    <div className="p-4 border-t border-gray-200 bg-gray-50 mt-auto">
-      <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-        <Cpu size={14} />
+    <div className="p-4 border-t border-border/30 bg-surface-muted/40 mt-auto">
+      <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-text-light uppercase tracking-wider">
+        <Cpu size={14} className="text-primary" />
         Ліміти Groq AI
       </div>
       
       {!hasMetrics ? (
-        <div className="text-[10px] text-gray-500 leading-tight">
+        <div className="text-[11px] text-text-light leading-tight">
           Відсутні дані про ліміти. Зробіть перший запит.
           <br/>
           (Або браузер блокує CORS заголовки Groq)
@@ -119,12 +119,12 @@ function AiMetricsWidget() {
           {metrics.requestsRemaining && (
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Запити (день)</span>
-                <span className="font-medium">{metrics.requestsRemaining} / {metrics.requestsLimit || '?'}</span>
+                <span className="text-text-light">Запити (день)</span>
+                <span className="font-medium text-text">{metrics.requestsRemaining} / {metrics.requestsLimit || '?'}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">
                 <div 
-                  className={`h-1.5 rounded-full ${reqPercent < 10 ? 'bg-red-500' : reqPercent < 30 ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                  className={`h-1.5 rounded-full ${reqPercent < 10 ? 'bg-danger' : reqPercent < 30 ? 'bg-border' : 'bg-success'}`} 
                   style={{ width: `${Math.max(reqPercent, 0)}%` }}
                 ></div>
               </div>
@@ -135,12 +135,12 @@ function AiMetricsWidget() {
           {metrics.tokensRemaining && (
             <div>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-500">Токени (хвилина)</span>
-                <span className="font-medium">{metrics.tokensRemaining} / {metrics.tokensLimit || '?'}</span>
+                <span className="text-text-light">Токени (хвилина)</span>
+                <span className="font-medium text-text">{metrics.tokensRemaining} / {metrics.tokensLimit || '?'}</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">
                 <div 
-                  className={`h-1.5 rounded-full ${tokPercent < 10 ? 'bg-red-500' : tokPercent < 30 ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                  className={`h-1.5 rounded-full ${tokPercent < 10 ? 'bg-danger' : tokPercent < 30 ? 'bg-border' : 'bg-success'}`} 
                   style={{ width: `${Math.max(tokPercent, 0)}%` }}
                 ></div>
               </div>

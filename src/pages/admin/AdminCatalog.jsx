@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadProductImage, deleteProductImage } from '../../services/storage.service';
 import { Loader2, Edit, Image as ImageIcon, X, Plus, Trash2, Star, Layers } from 'lucide-react';
-import { getName } from '../../utils/format';
+import { getName, formatPrice } from '../../utils/format';
 
 export default function AdminCatalog() {
   const [groups, setGroups] = useState([]);
@@ -229,34 +229,34 @@ export default function AdminCatalog() {
   };
 
   return (
-    <div className="p-6">
+    <div>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-serif text-gray-800">Каталог товарів</h1>
+        <h1 className="text-3xl font-serif text-text">Каталог товарів</h1>
       </div>
 
-      <div className="bg-white rounded-md shadow-sm border border-gray-200 overflow-hidden">
+      <div className="bg-surface rounded-md shadow-sm border border-border/30 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-border/20 text-text">
+            <thead className="bg-surface-muted/60 border-b border-border/30">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-20">Фото</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Назва</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Категорія</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Варіанти</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Дії</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-light uppercase tracking-wider w-20">Фото</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-light uppercase tracking-wider">Назва</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-text-light uppercase tracking-wider">Категорія</th>
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-text-light uppercase tracking-wider">Варіанти</th>
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-text-light uppercase tracking-wider">Статус</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-text-light uppercase tracking-wider">Дії</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-border/20">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-gray-500">
-                    <Loader2 className="animate-spin h-6 w-6 mx-auto text-gray-400" />
+                  <td colSpan="6" className="px-6 py-12 text-center text-text-light">
+                    <Loader2 className="animate-spin h-6 w-6 mx-auto text-primary" />
                   </td>
                 </tr>
               ) : groups.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500 font-medium">
+                  <td colSpan="6" className="px-6 py-8 text-center text-text-light font-medium">
                     Товарів не знайдено
                   </td>
                 </tr>
@@ -268,26 +268,26 @@ export default function AdminCatalog() {
                     || 'Не вказано';
 
                   return (
-                    <tr key={group.id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={group.id} className="hover:bg-surface-muted/30 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="h-12 w-12 rounded-md bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center">
+                        <div className="h-12 w-12 rounded-md bg-surface-muted border border-border/30 overflow-hidden flex items-center justify-center">
                           {mainPhoto ? (
                             <img src={mainPhoto} alt="" className="h-full w-full object-cover" />
                           ) : (
-                            <ImageIcon className="h-5 w-5 text-gray-400" />
+                            <ImageIcon className="h-5 w-5 text-text-light" />
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm font-medium text-gray-900">{group.name}</div>
-                        <div className="text-xs text-gray-500">Код: {group.base_article_code || '—'}</div>
+                      <td className="px-6 py-4 max-w-xs md:max-w-md">
+                        <div className="text-sm font-medium text-text truncate cursor-help" title={group.name}>{group.name}</div>
+                        <div className="text-xs text-text-light">Код: {group.base_article_code || '—'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                        <span className="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full bg-surface-muted text-text-light border border-border/20">
                           {catName}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm text-text-light">
                         {group.product_skus ? group.product_skus.length : 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -295,8 +295,8 @@ export default function AdminCatalog() {
                           onClick={() => toggleActive(group)}
                           className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${
                             group.is_active
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-red-100 text-red-600 hover:bg-red-200'
+                              ? 'bg-success/15 text-success hover:bg-success/25'
+                              : 'bg-danger/15 text-danger hover:bg-danger/25'
                           }`}
                         >
                           {group.is_active ? 'Активний' : 'Прихований'}
@@ -306,28 +306,28 @@ export default function AdminCatalog() {
                         <div className="flex justify-end gap-2">
                           <button
                             onClick={() => setEditGroup({ ...group })}
-                            className="text-gray-600 hover:text-[var(--color-primary)] p-1 border border-gray-200 rounded bg-white"
+                            className="text-text-light hover:text-primary p-1.5 border border-border/30 rounded bg-surface hover:bg-surface-muted transition-colors"
                             title="Редагувати"
                           >
                             <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => setPhotoGroup(group)}
-                            className="text-gray-600 hover:text-blue-600 p-1 border border-gray-200 rounded bg-white relative"
+                            className="text-text-light hover:text-primary p-1.5 border border-border/30 rounded bg-surface hover:bg-surface-muted transition-colors relative"
                             title="Фото"
                           >
                             <ImageIcon className="h-4 w-4" />
-                            <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
+                            <span className="absolute -top-2 -right-2 bg-primary text-on-primary text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-sans font-medium">
                               {group.product_photos?.length || 0}
                             </span>
                           </button>
                           <button
                             onClick={() => setVariantsGroup(group)}
-                            className="text-gray-600 hover:text-purple-600 p-1 border border-gray-200 rounded bg-white relative"
+                            className="text-text-light hover:text-primary p-1.5 border border-border/30 rounded bg-surface hover:bg-surface-muted transition-colors relative"
                             title="Варіанти"
                           >
                             <Layers className="h-4 w-4" />
-                            <span className="absolute -top-2 -right-2 bg-gray-800 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center">
+                            <span className="absolute -top-2 -right-2 bg-primary text-on-primary text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-sans font-medium">
                               {group.product_skus?.length || 0}
                             </span>
                           </button>
@@ -344,32 +344,32 @@ export default function AdminCatalog() {
 
       {/* EDIT MODAL */}
       {editGroup && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md shadow-xl w-full max-w-lg">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-medium text-gray-900">Редагувати товар</h3>
-              <button onClick={() => setEditGroup(null)} className="text-gray-400 hover:text-gray-500">
+        <div className="fixed inset-0 bg-overlay z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-md shadow-xl w-full max-w-lg border border-border/30 text-text">
+            <div className="flex justify-between items-center p-4 border-b border-border/20">
+              <h3 className="text-lg font-serif font-medium text-text">Редагувати товар</h3>
+              <button onClick={() => setEditGroup(null)} className="text-text-light hover:text-text">
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Назва товару</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Назва товару</label>
                 <input
                   type="text"
                   name="name"
                   value={editGroup.name || ''}
                   onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Категорія</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Категорія</label>
                 <select
                   name="category_id"
                   value={editGroup.category_id || ''}
                   onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 >
                   <option value="">-- Оберіть категорію --</option>
                   {groupedCategories.map(group => (
@@ -382,24 +382,24 @@ export default function AdminCatalog() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Бренд</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Бренд</label>
                 <select
                   name="brand_id"
                   value={editGroup.brand_id || ''}
                   onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 >
                   <option value="">— Оберіть або залиште порожнім —</option>
                   {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Для кого (Стать)</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Для кого (Стать)</label>
                 <select
                   name="gender"
                   value={editGroup.gender || ''}
                   onChange={handleEditChange}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 >
                   <option value="">— Оберіть —</option>
                   <option value="women">Жінки</option>
@@ -409,34 +409,34 @@ export default function AdminCatalog() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Опис</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Опис</label>
                 <textarea
                   name="description"
                   value={editGroup.description || ''}
                   onChange={handleEditChange}
                   rows="4"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 ></textarea>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Ключові слова (через кому)</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Ключові слова (через кому)</label>
                 <input
                   type="text"
                   name="keywords"
                   value={editGroup.keywords || ''}
                   onChange={handleEditChange}
                   placeholder="труси, нижня білизна, чоловічі, бавовна..."
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Інструкція з догляду</label>
+                <label className="block text-sm font-medium text-text-light mb-1">Інструкція з догляду</label>
                 <textarea
                   name="care_instructions"
                   value={editGroup.care_instructions || ''}
                   onChange={handleEditChange}
                   rows="3"
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-gray-500"
+                  className="w-full border border-border/40 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text"
                 ></textarea>
               </div>
               <div className="flex items-center">
@@ -446,24 +446,24 @@ export default function AdminCatalog() {
                   name="is_active"
                   checked={editGroup.is_active || false}
                   onChange={handleEditChange}
-                  className="h-4 w-4 text-[var(--color-primary)] focus:ring-[var(--color-primary)] border-gray-300 rounded"
+                  className="h-4 w-4 rounded border-border/40 text-primary accent-[var(--color-primary)]"
                 />
-                <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                <label htmlFor="is_active" className="ml-2 block text-sm text-text">
                   Активний товар (відображається в каталозі)
                 </label>
               </div>
             </div>
-            <div className="bg-gray-50 px-4 py-3 border-t flex justify-end gap-3 rounded-b-md">
+            <div className="bg-surface-muted/30 px-4 py-3 border-t border-border/20 flex justify-end gap-3 rounded-b-md">
               <button
                 onClick={() => setEditGroup(null)}
-                className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="px-4 py-2 border border-border/40 shadow-sm text-sm font-medium rounded-md text-text bg-surface hover:bg-surface-muted transition-colors"
               >
                 Скасувати
               </button>
               <button
                 onClick={saveEditGroup}
                 disabled={saving}
-                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gray-800 hover:bg-gray-900 focus:outline-none"
+                className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-on-primary bg-primary hover:bg-primary-hover focus:outline-none transition-colors"
               >
                 {saving && <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />}
                 Зберегти
@@ -475,21 +475,21 @@ export default function AdminCatalog() {
 
       {/* PHOTOS MODAL */}
       {photoGroup && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-md shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
+        <div className="fixed inset-0 bg-overlay z-50 flex items-center justify-center p-4">
+          <div className="bg-surface rounded-md shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col border border-border/30 text-text">
+            <div className="flex justify-between items-center p-4 border-b border-border/20 flex-shrink-0">
               <div>
-                <h3 className="text-lg font-medium text-gray-900">Фотографії товару</h3>
-                <p className="text-sm text-gray-500">{photoGroup.name}</p>
+                <h3 className="text-lg font-serif font-medium text-text">Фотографії товару</h3>
+                <p className="text-sm text-text-light">{photoGroup.name}</p>
               </div>
-              <button onClick={() => setPhotoGroup(null)} className="text-gray-400 hover:text-gray-500">
+              <button onClick={() => setPhotoGroup(null)} className="text-text-light hover:text-text">
                 <X className="h-5 w-5" />
               </button>
             </div>
             
             <div className="p-6 overflow-y-auto flex-1">
               <div className="flex justify-between items-center mb-4">
-                <h4 className="text-sm font-medium text-gray-700">Завантажені фотографії ({photoGroup.product_photos?.length || 0})</h4>
+                <h4 className="text-sm font-medium text-text">Завантажені фотографії ({photoGroup.product_photos?.length || 0})</h4>
                 <div>
                   <input 
                     type="file" 
@@ -502,7 +502,7 @@ export default function AdminCatalog() {
                   <button 
                     onClick={() => fileInputRef.current?.click()}
                     disabled={saving}
-                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
+                    className="inline-flex items-center px-3 py-1.5 border border-border/40 shadow-sm text-sm font-medium rounded-md text-text bg-surface hover:bg-surface-muted focus:outline-none transition-colors"
                   >
                     {saving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
                     Додати фото
@@ -511,10 +511,10 @@ export default function AdminCatalog() {
               </div>
               
               {photoGroup.product_photos?.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded border border-dashed border-gray-300">
-                  <ImageIcon className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Немає фотографій</h3>
-                  <p className="mt-1 text-sm text-gray-500">Завантажте фотографії для цієї групи товарів.</p>
+                <div className="text-center py-12 bg-surface-muted/30 rounded border border-dashed border-border/40">
+                  <ImageIcon className="mx-auto h-12 w-12 text-text-light" />
+                  <h3 className="mt-2 text-sm font-medium text-text">Немає фотографій</h3>
+                  <p className="mt-1 text-sm text-text-light">Завантажте фотографії для цього товару.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -522,25 +522,25 @@ export default function AdminCatalog() {
                     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
                     .map((photo) => (
                     <div key={photo.id} className={`relative rounded-lg overflow-hidden border-2 transition-all ${
-                      photo.is_main ? 'border-green-400' : 'border-gray-200'
+                      photo.is_main ? 'border-primary ring-2 ring-primary/20' : 'border-border/30'
                     }`}>
                       <div className="aspect-[3/4]">
                         <img src={photo.url} alt="" className="w-full h-full object-cover" />
                       </div>
                       
                       {photo.is_main && (
-                        <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded shadow-sm flex items-center">
-                          <Star className="h-3 w-3 mr-1 fill-white" />
+                        <div className="absolute top-2 left-2 bg-primary text-on-primary text-xs px-2 py-1 rounded shadow-sm flex items-center font-medium">
+                          <Star className="h-3 w-3 mr-1 fill-current" />
                           Головне
                         </div>
                       )}
                       
-                      <div className="flex gap-1 p-2 bg-gray-50 border-t border-gray-200">
+                      <div className="flex gap-1 p-2 bg-surface border-t border-border/20">
                         {!photo.is_main && (
                           <button
                             onClick={() => handleSetMainPhoto(photo.id)}
                             disabled={saving}
-                            className="flex-1 text-xs py-1 bg-white border border-gray-300 rounded hover:bg-gray-100"
+                            className="flex-1 text-xs py-1 bg-surface border border-border/40 rounded hover:bg-surface-muted transition-colors text-text"
                           >
                             Зробити головним
                           </button>
@@ -548,7 +548,7 @@ export default function AdminCatalog() {
                         <button
                           onClick={() => handleDeletePhoto(photo)}
                           disabled={saving}
-                          className={`px-2 py-1 bg-red-50 border border-red-200 text-red-600 rounded hover:bg-red-100 text-xs ${photo.is_main ? 'w-full' : ''}`}
+                          className={`px-2 py-1 bg-danger/10 border border-danger/20 text-danger rounded hover:bg-danger/20 text-xs transition-colors ${photo.is_main ? 'w-full' : ''}`}
                           title="Видалити"
                         >
                           <Trash2 className="h-3 w-3 mx-auto" />
@@ -764,26 +764,26 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-md shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-4 border-b flex-shrink-0">
+    <div className="fixed inset-0 bg-overlay z-50 flex items-center justify-center p-4">
+      <div className="bg-surface rounded-md shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col border border-border/30 text-text">
+        <div className="flex justify-between items-center p-4 border-b border-border/20 flex-shrink-0">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Варіанти товару</h3>
-            <p className="text-sm text-gray-500">{group.name}</p>
+            <h3 className="text-lg font-serif font-medium text-text">Варіанти товару</h3>
+            <p className="text-sm text-text-light">{group.name}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-500">
+          <button onClick={onClose} className="text-text-light hover:text-text">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="overflow-y-auto flex-1 p-4">
           {loading ? (
-            <div className="text-center py-8 text-gray-500">Завантаження...</div>
+            <div className="text-center py-8 text-text-light">Завантаження...</div>
           ) : variants.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Варіантів немає</div>
+            <div className="text-center py-8 text-text-light">Варіантів немає</div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+              <thead className="bg-surface-muted/60 text-text-light text-xs uppercase border-b border-border/20">
                 <tr>
                   <th className="px-3 py-2 text-left">Артикул / Назва</th>
                   <th className="px-3 py-2 text-left">Розмір</th>
@@ -793,24 +793,27 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                   <th className="px-3 py-2 text-right">Дії</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border/20">
                 {variants.map(variant => {
                   const art = articles[variant.article_id];
                   const totalQty = art?.shops?.reduce((s, sh) => s + (sh.quantity || 0), 0) || 0;
                   
                   return (
                     <React.Fragment key={variant.id}>
-                      <tr className="hover:bg-gray-50">
-                        <td className="px-3 py-3">
-                          <div className="font-medium text-gray-900">
-                            {variant.article_id}
+                      <tr className="hover:bg-surface-muted/30 transition-colors">
+                        <td className="px-3 py-3 max-w-xs md:max-w-md">
+                          <div className="font-medium text-text flex items-center gap-2">
+                            <span className="font-mono text-xs">{variant.article_id}</span>
                             {variant.is_main && (
-                              <span className="ml-2 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                              <span className="text-xs bg-success/15 text-success px-1.5 py-0.5 rounded font-medium">
                                 Головний
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-500" title={art?.text_name}>
+                          <div 
+                            className="text-xs text-text-light mt-1 break-words line-clamp-2 hover:line-clamp-none cursor-pointer transition-all" 
+                            title={art?.text_name}
+                          >
                             {art?.text_name || '—'}
                           </div>
                         </td>
@@ -818,7 +821,7 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                           <select
                             value={variant.size_id || ""}
                             onChange={(e) => handleUpdateVariantAttribute(variant.id, 'size_id', e.target.value)}
-                            className="border border-transparent hover:border-gray-300 rounded px-1 py-1 text-sm bg-transparent cursor-pointer focus:border-blue-500 focus:bg-white transition-all w-full"
+                            className="border border-border/30 hover:border-border/60 rounded px-1.5 py-1 text-sm bg-background text-text cursor-pointer focus:border-primary focus:outline-none transition-all w-full"
                           >
                             <option value="">—</option>
                             {sizes.map(s => (
@@ -830,7 +833,7 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                           <select
                             value={variant.color_id || ""}
                             onChange={(e) => handleUpdateVariantAttribute(variant.id, 'color_id', e.target.value)}
-                            className="border border-transparent hover:border-gray-300 rounded px-1 py-1 text-sm bg-transparent cursor-pointer focus:border-blue-500 focus:bg-white transition-all w-full"
+                            className="border border-border/30 hover:border-border/60 rounded px-1.5 py-1 text-sm bg-background text-text cursor-pointer focus:border-primary focus:outline-none transition-all w-full"
                           >
                             <option value="">—</option>
                             {colors.map(c => (
@@ -838,12 +841,12 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                             ))}
                           </select>
                         </td>
-                        <td className="px-3 py-3 text-right whitespace-nowrap">{art?.price || '—'} грн</td>
+                        <td className="px-3 py-3 text-right whitespace-nowrap font-medium text-text">{formatPrice(art?.price)}</td>
                         <td className="px-3 py-3 text-center">
                           <span className={`text-xs font-medium px-2 py-1 rounded-full whitespace-nowrap ${
                             totalQty > 0 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-red-100 text-red-600'
+                              ? 'bg-success/15 text-success' 
+                              : 'bg-danger/15 text-danger'
                           }`}>
                             {totalQty > 0 ? `${totalQty} шт` : 'Немає'}
                           </span>
@@ -853,7 +856,7 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                             {!variant.is_main && (
                               <button
                                 onClick={() => handleSetMain(variant)}
-                                className="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 text-gray-600"
+                                className="text-xs px-2 py-1 border border-border/40 rounded hover:bg-surface-muted text-text transition-colors"
                                 title="Зробити головним"
                               >
                                 ★
@@ -861,14 +864,14 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                             )}
                             <button
                               onClick={() => setMoving(moving === variant.id ? null : variant.id)}
-                              className="text-xs px-2 py-1 border border-blue-200 rounded hover:bg-blue-50 text-blue-600"
+                              className="text-xs px-2 py-1 border border-border/40 rounded hover:bg-surface-muted text-primary transition-colors font-medium"
                               title="Перемістити в інший товар"
                             >
                               →
                             </button>
                             <button
                               onClick={() => handleDelete(variant)}
-                              className="text-xs px-2 py-1 border border-red-200 rounded hover:bg-red-50 text-red-600"
+                              className="text-xs px-2 py-1 border border-danger/20 rounded hover:bg-danger/10 text-danger transition-colors"
                               title="Видалити варіант"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -879,28 +882,28 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                       
                       {/* Рядок переміщення */}
                       {moving === variant.id && (
-                        <tr className="bg-blue-50">
+                        <tr className="bg-surface-muted/40">
                           <td colSpan="6" className="px-3 py-3">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-700 font-medium whitespace-nowrap">
-                                Перемістити до:
+                              <span className="text-xs text-text font-medium whitespace-nowrap">
+                                Перемістити до товару:
                               </span>
                               <div className="relative flex-1">
                                 <input
                                   type="text"
                                   value={groupSearch}
                                   onChange={e => setGroupSearch(e.target.value)}
-                                  placeholder="Пошук групи..."
-                                  className="w-full border border-blue-200 rounded px-2 py-1 text-xs focus:outline-none"
+                                  placeholder="Пошук товару..."
+                                  className="w-full border border-border/40 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary bg-background text-text"
                                   autoFocus
                                 />
                                 {groupResults.length > 0 && (
-                                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded shadow-lg max-h-40 overflow-y-auto">
+                                  <div className="absolute z-10 w-full mt-1 bg-surface border border-border/30 rounded shadow-lg max-h-40 overflow-y-auto">
                                     {groupResults.map(g => (
                                       <div
                                         key={g.id}
                                         onClick={() => handleMove(variant, g.id)}
-                                        className="px-3 py-2 text-xs cursor-pointer hover:bg-gray-50"
+                                        className="px-3 py-2 text-xs cursor-pointer hover:bg-surface-muted/40 text-text"
                                       >
                                         {g.name}
                                       </div>
@@ -910,7 +913,7 @@ function VariantsModal({ group, onClose, onUpdate, onRefresh, colors, sizes }) {
                               </div>
                               <button
                                 onClick={() => { setMoving(null); setGroupSearch(''); }}
-                                className="text-xs text-gray-500 hover:text-gray-700"
+                                className="text-xs text-text-light hover:text-text transition-colors"
                               >
                                 Скасувати
                               </button>

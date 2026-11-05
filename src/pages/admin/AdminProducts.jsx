@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Loader2, Check, Search } from 'lucide-react';
 import { uploadProductImage } from '../../services/storage.service';
 import useAiMetricsStore from '../../store/useAiMetricsStore';
-import { getName } from '../../utils/format';
+import { getName, formatPrice } from '../../utils/format';
 
 export default function AdminProducts() {
   const [articles, setArticles] = useState([]);
@@ -172,7 +172,7 @@ export default function AdminProducts() {
       const uniqueVariants = Array.from(uniqueVariantsMap.values());
 
       if (uniqueVariants.length === 0) {
-        alert('Всі варіанти для цього коду вже згруповані!');
+        alert('Всі варіанти для цього коду вже додані до товарів!');
         setArticles(prev => prev.filter(a => a.id !== article.id));
         return;
       }
@@ -233,7 +233,7 @@ export default function AdminProducts() {
       const uniqueVariants = Array.from(uniqueVariantsMap.values());
       
       if (uniqueVariants.length === 0) {
-        alert('Всі варіанти для цього коду вже згруповані!');
+        alert('Всі варіанти для цього коду вже додані до товарів!');
         setArticles(prev => prev.filter(a => a.id !== article.id));
         setParsingQueue(prev => prev.slice(1));
         setIsParsing(false);
@@ -397,7 +397,7 @@ ${variantsText}
           is_active: true
         };
       } else {
-        if (!targetProductId) throw new Error('Оберіть групу');
+        if (!targetProductId) throw new Error('Оберіть товар');
       }
 
       // 1. Upload photos to Storage
@@ -472,13 +472,13 @@ ${variantsText}
 
   return (
     <div className="relative">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-serif text-gray-800">Товари — парсинг</h1>
-          <p className="text-sm text-gray-500 mt-1">Непов'язаних артикулів: {totalCount}</p>
+          <h1 className="text-3xl font-serif text-text">Товари — парсинг</h1>
+          <p className="text-sm text-text-light mt-1">Непов'язаних артикулів: {totalCount}</p>
         </div>
         <div className="flex items-center gap-4">
-          <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 whitespace-nowrap">
+          <label className="flex items-center gap-2 cursor-pointer text-sm text-text whitespace-nowrap">
             <input 
               type="checkbox" 
               checked={inStockOnly} 
@@ -486,14 +486,14 @@ ${variantsText}
                 setInStockOnly(e.target.checked);
                 setPage(0);
               }}
-              className="rounded border-gray-300 text-gray-900 focus:ring-gray-900"
+              className="rounded border-border/40 text-primary focus:ring-primary accent-[var(--color-primary)]"
             />
             Тільки в наявності ({'>'} 0)
           </label>
           <button
             onClick={handleParseSelected}
             disabled={selectedIds.size === 0 || isParsing || parsingQueue.length > 0}
-            className="bg-gray-800 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-gray-700 transition-colors whitespace-nowrap"
+            className="bg-primary text-on-primary px-4 py-2 rounded text-sm font-medium disabled:opacity-50 hover:bg-primary-hover transition-colors whitespace-nowrap shadow-sm"
           >
             Розпарсити обрані ({selectedIds.size})
           </button>
@@ -502,7 +502,7 @@ ${variantsText}
 
       <div className="mb-6 relative max-w-md">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-gray-400" />
+          <Search className="h-5 w-5 text-text-light" />
         </div>
         <input
           type="text"
@@ -512,85 +512,91 @@ ${variantsText}
             setPage(0);
           }}
           placeholder="Пошук за назвою, кодом або штрихкодом..."
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-gray-500 focus:border-gray-500 sm:text-sm transition-colors"
+          className="block w-full pl-10 pr-3 py-2 border border-border/40 rounded-md leading-5 bg-surface text-text placeholder:text-text-light focus:outline-none focus:border-primary sm:text-sm transition-colors"
         />
       </div>
 
-      <div className="bg-white rounded-md border border-gray-200 overflow-hidden shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
-            <tr>
-              <th className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={articles.length > 0 && selectedIds.size === articles.length}
-                  onChange={toggleSelectAll}
-                  className="rounded border-gray-300"
-                />
-              </th>
-              <th className="px-4 py-3 font-medium">Код</th>
-              <th className="px-4 py-3 font-medium">Назва</th>
-              <th className="px-4 py-3 font-medium">Штрихкод</th>
-              <th className="px-4 py-3 font-medium">Ціна</th>
-              <th className="px-4 py-3 font-medium text-right">Дія</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              <tr><td colSpan="6" className="p-8 text-center text-gray-500">Завантаження...</td></tr>
-            ) : articles.length === 0 ? (
-              <tr><td colSpan="6" className="p-8 text-center text-gray-500">Немає непов'язаних артикулів</td></tr>
-            ) : (
-              articles.map(article => (
-                <tr key={article.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.has(article.id)}
-                      onChange={() => toggleSelect(article.id)}
-                      className="rounded border-gray-300"
-                    />
-                  </td>
-                  <td className="px-4 py-3">{article.code}</td>
-                  <td className="px-4 py-3">{article.text_name}</td>
-                  <td className="px-4 py-3 text-gray-500">{article.barcode}</td>
-                  <td className="px-4 py-3">{article.price} грн</td>
-                  <td className="px-4 py-3 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => handleParseSingle(article)}
-                      disabled={isParsing || parsingQueue.length > 0}
-                      className="text-xs border border-gray-300 px-3 py-1.5 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700 font-medium"
-                    >
-                      Розпарсити
-                    </button>
-                    <button
-                      onClick={() => handleManualSingle(article)}
-                      disabled={isParsing || parsingQueue.length > 0}
-                      className="text-xs border border-gray-300 px-3 py-1.5 rounded hover:bg-gray-100 disabled:opacity-50 transition-colors text-gray-700 ml-2 font-medium"
-                    >
-                      Вручну
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="bg-surface rounded-md border border-border/30 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-surface-muted/60 border-b border-border/30 text-text-light">
+              <tr>
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={articles.length > 0 && selectedIds.size === articles.length}
+                    onChange={toggleSelectAll}
+                    className="rounded border-border/40 accent-[var(--color-primary)]"
+                  />
+                </th>
+                <th className="px-4 py-3 font-medium">Код</th>
+                <th className="px-4 py-3 font-medium">Назва артикулу</th>
+                <th className="px-4 py-3 font-medium">Штрихкод</th>
+                <th className="px-4 py-3 font-medium">Ціна</th>
+                <th className="px-4 py-3 font-medium text-right">Дія</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/20 text-text">
+              {loading ? (
+                <tr><td colSpan="6" className="p-8 text-center text-text-light">Завантаження...</td></tr>
+              ) : articles.length === 0 ? (
+                <tr><td colSpan="6" className="p-8 text-center text-text-light">Немає непов'язаних артикулів</td></tr>
+              ) : (
+                articles.map(article => (
+                  <tr key={article.id} className="hover:bg-surface-muted/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(article.id)}
+                        onChange={() => toggleSelect(article.id)}
+                        className="rounded border-border/40 accent-[var(--color-primary)]"
+                      />
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-text-light whitespace-nowrap">{article.code}</td>
+                    <td className="px-4 py-3 max-w-xs md:max-w-md">
+                      <div className="truncate font-medium text-text cursor-help" title={article.text_name}>
+                        {article.text_name}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-text-light font-mono text-xs whitespace-nowrap">{article.barcode || '—'}</td>
+                    <td className="px-4 py-3 font-medium whitespace-nowrap">{formatPrice(article.price)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button
+                        onClick={() => handleParseSingle(article)}
+                        disabled={isParsing || parsingQueue.length > 0}
+                        className="text-xs border border-border/40 bg-surface px-3 py-1.5 rounded hover:bg-surface-muted disabled:opacity-50 transition-colors text-text font-medium"
+                      >
+                        Розпарсити
+                      </button>
+                      <button
+                        onClick={() => handleManualSingle(article)}
+                        disabled={isParsing || parsingQueue.length > 0}
+                        className="text-xs border border-primary/30 bg-primary/5 text-primary px-3 py-1.5 rounded hover:bg-primary/10 disabled:opacity-50 transition-colors ml-2 font-medium"
+                      >
+                        Вручну
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-        {/* Pagination placeholder if needed */}
-        <div className="p-4 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+        {/* Pagination */}
+        <div className="p-4 border-t border-border/30 flex justify-between items-center bg-surface-muted/30">
           <button
             disabled={page === 0}
             onClick={() => setPage(p => p - 1)}
-            className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 bg-white"
+            className="px-3 py-1 border border-border/40 rounded text-sm disabled:opacity-50 bg-surface text-text hover:bg-surface-muted transition-colors"
           >
             Назад
           </button>
-          <span className="text-sm text-gray-500">Сторінка {page + 1}</span>
+          <span className="text-sm text-text-light">Сторінка {page + 1}</span>
           <button
             disabled={(page + 1) * 50 >= totalCount}
             onClick={() => setPage(p => p + 1)}
-            className="px-3 py-1 border border-gray-300 rounded text-sm disabled:opacity-50 bg-white"
+            className="px-3 py-1 border border-border/40 rounded text-sm disabled:opacity-50 bg-surface text-text hover:bg-surface-muted transition-colors"
           >
             Вперед
           </button>
@@ -598,10 +604,10 @@ ${variantsText}
       </div>
 
       {isParsing && !currentParsed && (
-        <div className="fixed inset-0 bg-black bg-opacity-10 z-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-md shadow-lg flex items-center gap-3">
-            <Loader2 className="animate-spin text-gray-600 h-6 w-6" />
-            <span className="text-gray-700 font-medium">ШІ аналізує товар...</span>
+        <div className="fixed inset-0 bg-overlay z-50 flex items-center justify-center p-4">
+          <div className="bg-surface p-6 rounded-md shadow-lg border border-border/30 flex items-center gap-3">
+            <Loader2 className="animate-spin text-primary h-6 w-6" />
+            <span className="text-text font-medium">ШІ аналізує товар...</span>
           </div>
         </div>
       )}
@@ -776,17 +782,22 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-md shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col">
-        <div className="p-6 border-b border-gray-100 flex-shrink-0">
-          <h2 className="text-xl font-serif text-gray-800">
-            {isManual ? 'Заповніть дані вручну' : 'Перевірте результат ШІ'}
+    <div className="fixed inset-0 bg-overlay z-50 flex items-center justify-center p-4">
+      <div className="bg-surface rounded-md shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col border border-border/30 text-text">
+        <div className="p-6 border-b border-border/20 flex-shrink-0">
+          <h2 className="text-xl font-serif text-text">
+            {isManual ? 'Заповніть дані товару вручну' : 'Перевірте результат ШІ'}
           </h2>
-          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
-            <p><span className="font-medium text-gray-500">Оригінал:</span> {data.article.text_name}</p>
-            <p><span className="font-medium text-gray-500">Код:</span> {data.article.code}</p>
+          <div className="mt-4 p-3 bg-surface-muted/40 border border-border/30 rounded text-sm text-text">
+            <p className="break-words">
+              <span className="font-medium text-text-light">Оригінал:</span>{' '}
+              <span className="font-semibold cursor-help" title={data.article.text_name}>{data.article.text_name}</span>
+            </p>
+            <p className="mt-1">
+              <span className="font-medium text-text-light">Код:</span> {data.article.code}
+            </p>
             {data.autoGroup && (
-              <p className="mt-1 text-green-600 font-medium">Знайдено існуючу групу за артикулом!</p>
+              <p className="mt-1 text-success font-medium">Знайдено існуючий товар за артикулом!</p>
             )}
           </div>
         </div>
@@ -795,19 +806,19 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-medium text-gray-500">Бренд</label>
-                <button onClick={() => openQuickAdd('brand')} className="text-[10px] text-blue-600 font-medium">+ Створити</button>
+                <label className="block text-xs font-medium text-text-light">Бренд</label>
+                <button onClick={() => openQuickAdd('brand')} className="text-xs text-primary font-medium hover:underline">+ Створити</button>
               </div>
               <select name="brand_id" value={formData.brand_id} onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text">
                 <option value="">— Оберіть або залиште порожнім —</option>
                 {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Для кого</label>
+              <label className="block text-xs font-medium text-text-light mb-1">Для кого</label>
               <select name="gender" value={formData.gender} onChange={handleChange}
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none bg-white">
+                className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text">
                 <option value="">— Оберіть —</option>
                 <option value="women">Жінки</option>
                 <option value="men">Чоловіки</option>
@@ -816,31 +827,35 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Тип товару</label>
-              <input type="text" name="product_type" value={formData.product_type} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+              <label className="block text-xs font-medium text-text-light mb-1">Тип товару</label>
+              <input type="text" name="product_type" value={formData.product_type} onChange={handleChange} className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text" />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Назва для сайту (base_name)</label>
-              <input type="text" name="base_name" value={formData.base_name} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+              <label className="block text-xs font-medium text-text-light mb-1">Назва товару (base_name)</label>
+              <input type="text" name="base_name" value={formData.base_name} onChange={handleChange} className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text" />
             </div>
             {formData.variants && formData.variants.length > 0 && (
               <div className="col-span-2 mt-4 mb-2">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Варіанти (Артикули)</label>
-                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded">
+                <label className="block text-xs font-medium text-text-light mb-2">Варіанти (Артикули)</label>
+                <div className="max-h-60 overflow-y-auto border border-border/30 rounded">
                   <table className="w-full text-left text-sm whitespace-nowrap">
-                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0 z-10">
+                    <thead className="bg-surface-muted/60 text-xs text-text-light uppercase sticky top-0 z-10 border-b border-border/20">
                       <tr>
                         <th className="px-3 py-2 font-medium w-20">ID</th>
-                        <th className="px-3 py-2 font-medium min-w-[24rem]">Оригінальна назва</th>
+                        <th className="px-3 py-2 font-medium min-w-[20rem]">Оригінальна назва</th>
                         <th className="px-3 py-2 font-medium">Розмір</th>
                         <th className="px-3 py-2 font-medium">Колір</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-border/20 text-text">
                       {formData.variants.map((v, i) => (
-                        <tr key={v.article_id}>
-                          <td className="px-3 py-1.5 align-middle">{v.article_id}</td>
-                          <td className="px-3 py-1.5 align-middle text-xs break-words">{v.text_name}</td>
+                        <tr key={v.article_id} className="hover:bg-surface-muted/20">
+                          <td className="px-3 py-1.5 align-middle text-text-light font-mono text-xs">{v.article_id}</td>
+                          <td className="px-3 py-1.5 align-middle text-xs break-words max-w-sm" title={v.text_name}>
+                            <div className="line-clamp-2 hover:line-clamp-none transition-all cursor-pointer font-medium text-text" title={v.text_name}>
+                              {v.text_name}
+                            </div>
+                          </td>
                           <td className="px-3 py-1.5 align-middle">
                             <div className="flex items-center gap-2">
                               <select 
@@ -850,12 +865,12 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                                   newVariants[i].size_id = e.target.value ? parseInt(e.target.value, 10) : null;
                                   setFormData({...formData, variants: newVariants});
                                 }}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                                className="w-full border border-border/40 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary bg-background text-text"
                               >
                                 <option value="">-- Оберіть --</option>
                                 {sizes.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                               </select>
-                              <button onClick={() => openQuickAdd('size', v.article_id)} className="text-[10px] text-blue-600 font-medium whitespace-nowrap">+ Ств.</button>
+                              <button onClick={() => openQuickAdd('size', v.article_id)} className="text-xs text-primary font-medium whitespace-nowrap hover:underline">+ Ств.</button>
                             </div>
                           </td>
                           <td className="px-3 py-1.5 align-middle">
@@ -867,12 +882,12 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                                   newVariants[i].color_id = e.target.value ? parseInt(e.target.value, 10) : null;
                                   setFormData({...formData, variants: newVariants});
                                 }}
-                                className="w-full border border-gray-300 rounded px-2 py-1 text-xs focus:outline-none focus:border-gray-500 bg-white"
+                                className="w-full border border-border/40 rounded px-2 py-1 text-xs focus:outline-none focus:border-primary bg-background text-text"
                               >
                                 <option value="">-- Оберіть --</option>
                                 {colors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                               </select>
-                              <button onClick={() => openQuickAdd('color', v.article_id)} className="text-[10px] text-blue-600 font-medium whitespace-nowrap">+ Ств.</button>
+                              <button onClick={() => openQuickAdd('color', v.article_id)} className="text-xs text-primary font-medium whitespace-nowrap hover:underline">+ Ств.</button>
                             </div>
                           </td>
                         </tr>
@@ -883,8 +898,8 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               </div>
             )}
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Категорія</label>
-              <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none bg-white">
+              <label className="block text-xs font-medium text-text-light mb-1">Категорія</label>
+              <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text">
                 <option value="">-- Оберіть категорію --</option>
                 {groupedCategories.map(group => (
                   <optgroup key={group.id} label={getName(group)}>
@@ -897,15 +912,15 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
             </div>
             <div className="col-span-2">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-xs font-medium text-gray-500">Матеріали</label>
-                <button onClick={() => openQuickAdd('material')} className="text-[10px] text-blue-600 font-medium">+ Створити</button>
+                <label className="block text-xs font-medium text-text-light">Матеріали</label>
+                <button onClick={() => openQuickAdd('material')} className="text-xs text-primary font-medium hover:underline">+ Створити</button>
               </div>
               <div className="flex flex-wrap gap-2">
                 {materials.map(m => (
                   <label key={m.id} className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs cursor-pointer transition-colors ${
                     formData.material_ids.includes(m.id)
-                      ? 'bg-gray-800 text-white border-gray-800'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                      ? 'bg-primary text-on-primary border-primary shadow-sm'
+                      : 'bg-surface text-text-light border-border/30 hover:border-border'
                   }`}>
                     <input
                       type="checkbox"
@@ -926,17 +941,17 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               </div>
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Опис товару (ШІ)</label>
+              <label className="block text-xs font-medium text-text-light mb-1">Опис товару (ШІ)</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
                 rows="3"
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none resize-y"
+                className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text resize-y"
               />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">
+              <label className="block text-xs font-medium text-text-light mb-1">
                 Ключові слова для пошуку
               </label>
               <input
@@ -945,21 +960,21 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                 value={formData.keywords}
                 onChange={handleChange}
                 placeholder="труси, нижня білизна, чоловічі, бавовна..."
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+                className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text"
               />
             </div>
             <div className="col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-2">Фотографії</label>
+              <label className="block text-xs font-medium text-text-light mb-2">Фотографії</label>
               <div className="flex flex-wrap gap-4">
                 {photoPreviews.map((p, idx) => (
-                  <div key={idx} className="relative w-20 h-20 border rounded overflow-hidden">
+                  <div key={idx} className="relative w-20 h-20 border border-border/30 rounded overflow-hidden">
                     <img src={p.url} alt="preview" className="w-full h-full object-cover" />
-                    <button onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-red-500 text-white p-0.5 rounded-bl">×</button>
+                    <button onClick={() => removePhoto(idx)} className="absolute top-0 right-0 bg-danger text-white p-0.5 rounded-bl">×</button>
                   </div>
                 ))}
                 <button
                   onClick={() => fileInputRef.current.click()}
-                  className="w-20 h-20 border-2 border-dashed border-gray-300 rounded flex items-center justify-center text-gray-400 hover:border-gray-400"
+                  className="w-20 h-20 border-2 border-dashed border-border/40 rounded flex items-center justify-center text-text-light hover:border-primary hover:text-primary transition-colors text-xl"
                 >+</button>
                 <input type="file" multiple accept="image/*" className="hidden" ref={fileInputRef} onChange={handlePhotoSelect} />
               </div>
@@ -968,31 +983,31 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
 
           {confidence != null && (
             <div className="mb-8">
-              <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <div className="flex justify-between text-xs text-text-light mb-1">
                 <span>Впевненість ШІ</span>
-                <span>{confidence}%</span>
+                <span className="font-medium text-text">{confidence}%</span>
               </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5">
-                <div className={`h-1.5 rounded-full ${confidence > 80 ? 'bg-green-500' : confidence > 50 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${confidence}%` }}></div>
+              <div className="w-full bg-surface-muted rounded-full h-1.5 overflow-hidden">
+                <div className={`h-1.5 rounded-full ${confidence > 80 ? 'bg-success' : confidence > 50 ? 'bg-border' : 'bg-danger'}`} style={{ width: `${confidence}%` }}></div>
               </div>
             </div>
           )}
 
-          <div className="border-t border-gray-100 pt-6">
+          <div className="border-t border-border/20 pt-6">
             <div className="flex gap-6 mb-4">
-              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                <input type="radio" name="saveMode" value="new" checked={saveMode === 'new'} onChange={() => setSaveMode('new')} className="text-gray-800 focus:ring-gray-800" />
-                Створити нову групу
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer text-text">
+                <input type="radio" name="saveMode" value="new" checked={saveMode === 'new'} onChange={() => setSaveMode('new')} className="accent-[var(--color-primary)]" />
+                Створити новий товар
               </label>
-              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
-                <input type="radio" name="saveMode" value="existing" checked={saveMode === 'existing'} onChange={() => setSaveMode('existing')} className="text-gray-800 focus:ring-gray-800" />
-                Додати до існуючої групи
+              <label className="flex items-center gap-2 text-sm font-medium cursor-pointer text-text">
+                <input type="radio" name="saveMode" value="existing" checked={saveMode === 'existing'} onChange={() => setSaveMode('existing')} className="accent-[var(--color-primary)]" />
+                Додати до існуючого товару
               </label>
             </div>
 
             {saveMode === 'existing' && (
-              <div className="bg-gray-50 p-4 rounded border border-gray-200">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Шукати групу</label>
+              <div className="bg-surface-muted/30 p-4 rounded border border-border/30">
+                <label className="block text-xs font-medium text-text-light mb-1">Шукати товар</label>
                 <GroupCombobox
                   initialName={data.autoGroup ? data.autoGroup.name : ''}
                   onChange={setSelectedGroupId}
@@ -1006,11 +1021,11 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
           </div>
         </div>
 
-        <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-md flex-shrink-0">
+        <div className="p-4 border-t border-border/20 bg-surface-muted/30 flex justify-end gap-3 rounded-b-md flex-shrink-0">
           <button
             onClick={onCancel}
             disabled={isSaving}
-            className="px-4 py-2 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-white disabled:opacity-50 transition-colors"
+            className="px-4 py-2 border border-border/40 rounded text-sm font-medium text-text hover:bg-surface disabled:opacity-50 transition-colors"
           >
             Скасувати
           </button>
@@ -1021,7 +1036,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               setIsSaving(false);
             }}
             disabled={isSaving || (saveMode === 'existing' && !selectedProductId)}
-            className="px-4 py-2 bg-gray-800 text-white rounded text-sm font-medium hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2 transition-colors min-w-[180px] justify-center"
+            className="px-4 py-2 bg-primary text-on-primary rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 flex items-center gap-2 transition-colors min-w-[180px] justify-center shadow-sm"
           >
             {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
             {isSaving ? 'Завантаження...' : 'Підтвердити і зберегти'}
@@ -1030,30 +1045,30 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
       </div>
 
       {quickAddType && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-md shadow-xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-medium mb-4">
+        <div className="fixed inset-0 bg-overlay z-[60] flex items-center justify-center p-4">
+          <div className="bg-surface rounded-md shadow-xl w-full max-w-sm p-6 border border-border/30 text-text">
+            <h3 className="text-lg font-serif font-medium mb-4 text-text">
               Додати {quickAddType === 'brand' ? 'бренд' : quickAddType === 'color' ? 'колір' : quickAddType === 'size' ? 'розмір' : 'матеріал'}
             </h3>
             
             <div className="space-y-3 mb-6">
               {(quickAddType === 'brand' || quickAddType === 'color' || quickAddType === 'material') && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Назва</label>
+                  <label className="block text-xs font-medium text-text-light mb-1">Назва</label>
                   <input type="text" value={quickAddData.name || ''} 
                     onChange={e => setQuickAddData({...quickAddData, name: e.target.value})}
-                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none" />
+                    className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text" />
                 </div>
               )}
               {quickAddType === 'size' && (
                 <>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Значення</label>
-                    <input type="text" value={quickAddData.name} onChange={e => setQuickAddData({...quickAddData, name: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                    <label className="block text-xs font-medium text-text-light mb-1">Значення</label>
+                    <input type="text" value={quickAddData.name} onChange={e => setQuickAddData({...quickAddData, name: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text" />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Тип розміру</label>
-                    <select value={quickAddData.size_type} onChange={e => setQuickAddData({...quickAddData, size_type: e.target.value})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-white focus:outline-none">
+                    <label className="block text-xs font-medium text-text-light mb-1">Тип розміру</label>
+                    <select value={quickAddData.size_type} onChange={e => setQuickAddData({...quickAddData, size_type: e.target.value})} className="w-full border border-border/40 rounded px-3 py-2 text-sm bg-background text-text focus:outline-none focus:border-primary">
                       <option value="standard">Стандартний</option>
                       <option value="numeric">Числовий</option>
                       <option value="bra">Бюстгальтер</option>
@@ -1065,24 +1080,24 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               )}
               {quickAddType === 'color' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">HEX-код</label>
+                  <label className="block text-xs font-medium text-text-light mb-1">HEX-код</label>
                   <div className="flex gap-2">
-                    <input type="color" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="h-9 w-9 p-0 border-0 rounded cursor-pointer" />
-                    <input type="text" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                    <input type="color" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="h-9 w-9 p-0 border border-border/30 rounded cursor-pointer" />
+                    <input type="text" value={quickAddData.hex} onChange={e => setQuickAddData({...quickAddData, hex: e.target.value})} className="flex-1 border border-border/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text" />
                   </div>
                 </div>
               )}
               {(quickAddType === 'size' || quickAddType === 'material') && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Сортування (0=найвище)</label>
-                  <input type="number" value={quickAddData.sort_order} onChange={e => setQuickAddData({...quickAddData, sort_order: parseInt(e.target.value)||0})} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none" />
+                  <label className="block text-xs font-medium text-text-light mb-1">Сортування (0=найвище)</label>
+                  <input type="number" value={quickAddData.sort_order} onChange={e => setQuickAddData({...quickAddData, sort_order: parseInt(e.target.value)||0})} className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary bg-background text-text" />
                 </div>
               )}
             </div>
 
             <div className="flex justify-end gap-3">
-              <button onClick={() => setQuickAddType(null)} className="px-4 py-2 border border-gray-300 rounded text-sm text-gray-700 hover:bg-gray-50 transition-colors">Скасувати</button>
-              <button onClick={handleQuickAddSave} disabled={isQuickAdding} className="px-4 py-2 bg-gray-900 text-white rounded text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors">
+              <button onClick={() => setQuickAddType(null)} className="px-4 py-2 border border-border/40 rounded text-sm text-text hover:bg-surface-muted transition-colors">Скасувати</button>
+              <button onClick={handleQuickAddSave} disabled={isQuickAdding} className="px-4 py-2 bg-primary text-on-primary rounded text-sm font-medium hover:bg-primary-hover disabled:opacity-50 transition-colors shadow-sm">
                 {isQuickAdding ? 'Збереження...' : 'Додати'}
               </button>
             </div>
@@ -1126,7 +1141,7 @@ function GroupCombobox({ initialName, onChange, onSelectNew }) {
     <div className="relative">
       <input
         type="text"
-        placeholder="Пошук за назвою або базовим артикулом..."
+        placeholder="Пошук за назвою або кодом товару..."
         value={isOpen ? query : selectedName}
         onChange={(e) => {
           setQuery(e.target.value);
@@ -1137,13 +1152,13 @@ function GroupCombobox({ initialName, onChange, onSelectNew }) {
           setIsOpen(true);
           setQuery('');
         }}
-        className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none bg-white"
+        className="w-full border border-border/40 rounded px-3 py-2 text-sm focus:border-primary focus:outline-none bg-background text-text"
       />
       {isOpen && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
+        <div className="absolute z-10 w-full mt-1 bg-surface border border-border/30 rounded-md shadow-lg max-h-60 overflow-y-auto">
           {isSearching ? (
-            <div className="p-3 text-sm text-gray-500 text-center flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin h-4 w-4" /> Пошук...
+            <div className="p-3 text-sm text-text-light text-center flex items-center justify-center gap-2">
+              <Loader2 className="animate-spin text-primary h-4 w-4" /> Пошук...
             </div>
           ) : (
             <>
@@ -1155,10 +1170,10 @@ function GroupCombobox({ initialName, onChange, onSelectNew }) {
                     setSelectedName(g.name);
                     setIsOpen(false);
                   }}
-                  className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 border-b border-gray-100 last:border-0"
+                  className="px-3 py-2 text-sm cursor-pointer hover:bg-surface-muted/40 border-b border-border/20 last:border-0"
                 >
-                  <div className="font-medium">{g.name}</div>
-                  {g.base_article_code && <div className="text-xs text-gray-500">Код: {g.base_article_code}</div>}
+                  <div className="font-medium text-text">{g.name}</div>
+                  {g.base_article_code && <div className="text-xs text-text-light">Код: {g.base_article_code}</div>}
                 </div>
               ))}
 
@@ -1167,9 +1182,9 @@ function GroupCombobox({ initialName, onChange, onSelectNew }) {
                   setIsOpen(false);
                   onSelectNew(query);
                 }}
-                className="px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 text-blue-600 font-medium"
+                className="px-3 py-2 text-sm cursor-pointer hover:bg-surface-muted/40 text-primary font-medium"
               >
-                + Створити нову групу: "{query || 'Без назви'}"
+                + Створити нову картку товару: "{query || 'Без назви'}"
               </div>
             </>
           )}
