@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useCartStore } from '../store/useCartStore';
 import { supabase } from '../lib/supabase';
 import ProductImage from '../components/ProductImage';
@@ -8,9 +8,14 @@ import { formatPrice } from '../utils/format';
 import { CheckCircle2, ArrowLeft } from 'lucide-react';
 
 export default function Checkout() {
+  const [searchParams] = useSearchParams();
+  const urlOrder = searchParams.get('order');
+  const urlStatus = searchParams.get('status');
+
   const { items, clearCart } = useCartStore();
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [orderNumber, setOrderNumber] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(Boolean(urlOrder && urlStatus === 'success'));
+  const [orderNumber, setOrderNumber] = useState(urlOrder || '');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -20,7 +25,7 @@ export default function Checkout() {
     delivery: 'np_branch',
     address: '',
     comment: '',
-    payment: 'upon_receipt'
+    payment: 'monobank'
   });
 
   // Shops State
@@ -139,36 +144,53 @@ export default function Checkout() {
       return;
     }
 
-    const { data, error } = await supabase.functions.invoke('create-order', {
-      body: {
-        first_name:       formData.firstName,
-        last_name:        formData.lastName,
-        phone:            formData.phone,
-        email:            formData.email,
-        delivery_type:    formData.delivery,
-        payment_type:     formData.payment,
-        comment:          formData.comment || null,
-        city:             selectedCity?.Present || null,
-        city_ref:         selectedCity?.Ref || null,
-        branch:           selectedBranch?.Description || null,
-        branch_ref:       selectedBranch?.Ref || null,
-        courier_address:  formData.delivery === 'np_courier' ? formData.address : null,
-        pickup_shop_id:   selectedShop?.id || null,
-        pickup_shop_name: selectedShop?.name || null,
-        user_agent:       navigator.userAgent,
-        referrer:         document.referrer || null,
-        items:            items,
+    setIsSubmitting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('create-order', {
+        body: {
+          first_name:       formData.firstName,
+          last_name:        formData.lastName,
+          phone:            formData.phone,
+          email:            formData.email,
+          delivery_type:    formData.delivery,
+          payment_type:     formData.payment,
+          comment:          formData.comment || null,
+          city:             selectedCity?.Present || null,
+          city_ref:         selectedCity?.Ref || null,
+          branch:           selectedBranch?.Description || null,
+          branch_ref:       selectedBranch?.Ref || null,
+          courier_address:  formData.delivery === 'np_courier' ? formData.address : null,
+          pickup_shop_id:   selectedShop?.id || null,
+          pickup_shop_name: selectedShop?.name || null,
+          user_agent:       navigator.userAgent,
+          referrer:         document.referrer || null,
+          origin:           window.location.origin,
+          items:            items,
+        }
+      });
+
+      if (error || data?.error) {
+        alert(data?.error || 'Помилка при збереженні замовлення');
+        setIsSubmitting(false);
+        return;
       }
-    });
 
-    if (error || data?.error) {
-      alert(data?.error || 'Помилка при збереженні замовлення');
-      return;
+      if (data?.payment_url) {
+        clearCart();
+        window.location.href = data.payment_url;
+        return;
+      }
+
+      setOrderNumber(data.order_number);
+      clearCart();
+      setIsSubmitted(true);
+    } catch (err) {
+      console.error('Order submission error:', err);
+      alert('Виникла непередбачена помилка. Спробуйте ще раз або зв\'яжіться з нами.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setOrderNumber(data.order_number);
-    clearCart();
-    setIsSubmitted(true);
   };
 
   if (isSubmitted) {
@@ -192,7 +214,9 @@ export default function Checkout() {
           </h1>
           <BoudoirOrnament variant="divider" className="w-32 mx-auto mb-6 text-border" />
           <p className="text-text-light mb-8 font-body text-base leading-relaxed">
-            Ваше замовлення успішно прийнято. Наш консультант зв’яжеться з вами найближчим часом для підтвердження деталей.
+            {urlStatus === 'success'
+              ? 'Оплата пройшла успішно! Ваше замовлення прийнято в роботу. Наш консультант зв’яжеться з вами найближчим часом для узгодження відправки.'
+              : 'Ваше замовлення успішно прийнято. Наш консультант зв’яжеться з вами найближчим часом для підтвердження деталей.'}
           </p>
           <Link
             to="/catalog"
@@ -493,32 +517,55 @@ export default function Checkout() {
 
               <h2 className="text-xl font-serif text-text mb-6">Спосіб оплати</h2>
               <div className="space-y-3">
-                <label className={`flex items-center gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'upon_receipt' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
+                <label className={`flex items-start gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'monobank' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="monobank"
+                    checked={formData.payment === 'monobank'}
+                    onChange={handleInputChange}
+                    className="mt-1 h-4 w-4 accent-primary focus-visible:outline-primary"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <span className="text-sm font-medium text-text">Онлайн-оплата (Monobank / Apple Pay / Google Pay)</span>
+                      <span className="text-[10px] font-serif uppercase tracking-widest text-primary bg-primary-light/60 px-2 py-0.5 border border-border/40">
+                        Миттєво
+                      </span>
+                    </div>
+                    <span className="text-xs text-text-light block mt-0.5">
+                      Безпечна оплата будь-якою банківською карткою через Monobank Acquiring
+                    </span>
+                  </div>
+                </label>
+
+                <label className={`flex items-start gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'upon_receipt' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
                   <input
                     type="radio"
                     name="payment"
                     value="upon_receipt"
                     checked={formData.payment === 'upon_receipt'}
                     onChange={handleInputChange}
-                    className="h-4 w-4 accent-primary focus-visible:outline-primary"
+                    className="mt-1 h-4 w-4 accent-primary focus-visible:outline-primary"
                   />
                   <div>
                     <span className="text-sm font-medium text-text block">Оплата при отриманні</span>
-                    <span className="text-xs text-text-light">У відділенні Нової Пошти або в бутику</span>
+                    <span className="text-xs text-text-light">У відділенні Нової Пошти (післяплата) або в бутику</span>
                   </div>
                 </label>
-                <label className={`flex items-center gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'card' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
+
+                <label className={`flex items-start gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'card' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
                   <input
                     type="radio"
                     name="payment"
                     value="card"
                     checked={formData.payment === 'card'}
                     onChange={handleInputChange}
-                    className="h-4 w-4 accent-primary focus-visible:outline-primary"
+                    className="mt-1 h-4 w-4 accent-primary focus-visible:outline-primary"
                   />
                   <div>
-                    <span className="text-sm font-medium text-text block">Передоплата на розрахунковий рахунок</span>
-                    <span className="text-xs text-text-light">Реквізити надішле менеджер після підтвердження</span>
+                    <span className="text-sm font-medium text-text block">Передоплата на розрахунковий рахунок (IBAN)</span>
+                    <span className="text-xs text-text-light">Реквізити надішле менеджер після підтвердження наявності</span>
                   </div>
                 </label>
               </div>
@@ -542,9 +589,14 @@ export default function Checkout() {
 
             <button
               type="submit"
-              className="w-full bg-primary text-on-primary hover:bg-primary-hover border border-border/40 px-4 py-4 text-xs font-serif uppercase tracking-widest transition-colors duration-300 focus-visible:outline-primary shadow-sm"
+              disabled={isSubmitting}
+              className="w-full bg-primary text-on-primary hover:bg-primary-hover disabled:opacity-60 disabled:cursor-not-allowed border border-border/40 px-4 py-4 text-xs font-serif uppercase tracking-widest transition-colors duration-300 focus-visible:outline-primary shadow-sm"
             >
-              Підтвердити замовлення
+              {isSubmitting
+                ? 'Обробка замовлення...'
+                : formData.payment === 'monobank'
+                  ? 'Перейти до оплати онлайн'
+                  : 'Підтвердити замовлення'}
             </button>
           </form>
         </div>

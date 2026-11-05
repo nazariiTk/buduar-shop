@@ -6,6 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const MONO_API = 'https://api.monobank.ua'
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -41,10 +43,10 @@ serve(async (req) => {
       )
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
     const authorization = req.headers.get('Authorization')
     let userId: string | null = null
     if (authorization?.startsWith('Bearer ')) {
@@ -80,6 +82,7 @@ serve(async (req) => {
     // Перевіряємо кожен товар у кошику і рахуємо суму
     let subtotal = 0
     const validatedOrderItems = []
+    const monoBasketOrder = []
 
     for (const item of body.items) {
       const articleId = item.id
@@ -115,9 +118,17 @@ serve(async (req) => {
         quantity:     reqQty,
         total:        itemTotal,
       })
+
+      monoBasketOrder.push({
+        name: `${item.name}${item.size ? ' (' + item.size + ')' : ''}`,
+        qty: reqQty,
+        sum: Math.round(dbInfo.price * 100), // ціна в копійках
+        unit: 'шт.',
+        code: String(articleId),
+      })
     }
 
-    // Зберігаємо замовлення
+    // 1. Зберігаємо замовлення в БД
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -127,6 +138,7 @@ serve(async (req) => {
         email:            body.email,
         delivery_type:    body.delivery_type,
         payment_type:     body.payment_type,
+        payment_status:   'pending',
         comment:          body.comment || null,
         city:             body.city || null,
         city_ref:         body.city_ref || null,
@@ -146,29 +158,94 @@ serve(async (req) => {
 
     if (orderError) throw orderError
 
-    // Прив'язуємо ID замовлення
+    // 2. Прив'язуємо товари до замовлення
     const itemsToInsert = validatedOrderItems.map(i => ({ ...i, order_id: order.id }))
-
     const { error: itemsError } = await supabase
       .from('order_items')
       .insert(itemsToInsert)
 
     if (itemsError) throw itemsError
 
-    // Відправляємо email
-    await supabase.functions.invoke('send-order-email', {
-      body: { order_id: order.id }
-    })
+    // 3. Якщо обрано оплату карткою онлайн через Monobank
+    let paymentUrl: string | null = null
+    let invoiceId: string | null = null
+
+    if (body.payment_type === 'monobank' || body.payment_type === 'card_online') {
+      const monoToken = Deno.env.get('MONOBANK_TOKEN')
+      if (monoToken) {
+        try {
+          const webhookUrl = `${supabaseUrl}/functions/v1/monobank-webhook`
+          const clientOrigin = body.origin || 'https://buduar.pp.ua'
+          const redirectUrl = `${clientOrigin}/checkout?order=${order.order_number}&status=success`
+
+          const monoPayload = {
+            amount: Math.round(subtotal * 100), // сума в копійках
+            ccy: 980, // UAH
+            merchantPaymInfo: {
+              reference: order.order_number,
+              destination: `Оплата замовлення ${order.order_number} у бутику «Будуар»`,
+              basketOrder: monoBasketOrder,
+            },
+            redirectUrl: redirectUrl,
+            webHookUrl: webhookUrl,
+            validity: 3600, // 1 година
+            paymentType: 'debit',
+          }
+
+          console.log(`Creating Monobank invoice for ${order.order_number}:`, JSON.stringify(monoPayload))
+
+          const monoResp = await fetch(`${MONO_API}/api/merchant/invoice/create`, {
+            method: 'POST',
+            headers: {
+              'X-Token': monoToken,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(monoPayload),
+          })
+
+          const monoData = await monoResp.json()
+
+          if (!monoResp.ok) {
+            console.error('Monobank invoice creation failed:', monoData)
+          } else if (monoData.invoiceId && monoData.pageUrl) {
+            invoiceId = monoData.invoiceId
+            paymentUrl = monoData.pageUrl
+
+            // Записуємо invoiceId в замовлення
+            await supabase
+              .from('orders')
+              .update({ payment_invoice_id: invoiceId })
+              .eq('id', order.id)
+          }
+        } catch (monoErr) {
+          console.error('Error contacting Monobank API:', monoErr)
+        }
+      }
+    }
+
+    // 4. Відправляємо email-сповіщення
+    try {
+      await supabase.functions.invoke('send-order-email', {
+        body: { order_id: order.id }
+      })
+    } catch (e) {
+      console.warn('Could not trigger order email:', e)
+    }
 
     return new Response(
-      JSON.stringify({ success: true, order_number: order.order_number }),
+      JSON.stringify({
+        success: true,
+        order_number: order.order_number,
+        payment_url: paymentUrl,
+        invoice_id: invoiceId
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('Order error:', err)
     return new Response(
-      JSON.stringify({ error: 'Помилка сервера' }),
+      JSON.stringify({ error: err.message || 'Помилка сервера' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
