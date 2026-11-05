@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Loader2, Check, Search } from 'lucide-react';
 import { uploadProductImage } from '../../services/storage.service';
 import useAiMetricsStore from '../../store/useAiMetricsStore';
+import { getName } from '../../utils/format';
 
 export default function AdminProducts() {
   const [articles, setArticles] = useState([]);
@@ -75,7 +76,7 @@ export default function AdminProducts() {
 
   const isProcessingRef = useRef(false);
 
-  async function fetchArticles() {
+  const fetchArticles = useCallback(async () => {
     setLoading(true);
     try {
       // Fetch unlinked articles using RPC
@@ -115,7 +116,7 @@ export default function AdminProducts() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [page, debouncedQuery, inStockOnly]);
 
   const toggleSelect = (id) => {
     const newSet = new Set(selectedIds);
@@ -200,7 +201,7 @@ export default function AdminProducts() {
     }
   };
 
-  const processQueue = async () => {
+  const processQueue = useCallback(async () => {
     setIsParsing(true);
     const article = parsingQueue[0];
     try {
@@ -343,7 +344,7 @@ ${variantsText}
     } finally {
       setIsParsing(false);
     }
-  };
+  }, [parsingQueue, colors, sizes, brands, materials]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -357,7 +358,7 @@ ${variantsText}
       void fetchArticles();
     }, 0);
     return () => clearTimeout(timer);
-  }, [page, debouncedQuery, inStockOnly]);
+  }, [fetchArticles]);
 
   useEffect(() => {
     if (parsingQueue.length > 0 && !currentParsed && !isProcessingRef.current) {
@@ -366,7 +367,7 @@ ${variantsText}
         isProcessingRef.current = false;
       });
     }
-  }, [parsingQueue.length, currentParsed]);
+  }, [parsingQueue.length, currentParsed, processQueue]);
 
   const handleSaveParsed = async (saveData, saveMode, selectedProductId, selectedPhotos) => {
     const uploadedPaths = [];
@@ -776,7 +777,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-md shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-md shadow-xl w-full max-w-6xl max-h-[92vh] flex flex-col">
         <div className="p-6 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-xl font-serif text-gray-800">
             {isManual ? 'Заповніть дані вручну' : 'Перевірте результат ШІ'}
@@ -830,7 +831,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                     <thead className="bg-gray-50 text-xs text-gray-500 uppercase sticky top-0 z-10">
                       <tr>
                         <th className="px-3 py-2 font-medium w-20">ID</th>
-                        <th className="px-3 py-2 font-medium w-1/3">Оригінальна назва</th>
+                        <th className="px-3 py-2 font-medium min-w-[24rem]">Оригінальна назва</th>
                         <th className="px-3 py-2 font-medium">Розмір</th>
                         <th className="px-3 py-2 font-medium">Колір</th>
                       </tr>
@@ -839,7 +840,7 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
                       {formData.variants.map((v, i) => (
                         <tr key={v.article_id}>
                           <td className="px-3 py-1.5 align-middle">{v.article_id}</td>
-                          <td className="px-3 py-1.5 align-middle text-xs truncate max-w-[200px]" title={v.text_name}>{v.text_name}</td>
+                          <td className="px-3 py-1.5 align-middle text-xs break-words">{v.text_name}</td>
                           <td className="px-3 py-1.5 align-middle">
                             <div className="flex items-center gap-2">
                               <select 
@@ -886,9 +887,9 @@ function ParsingModal({ data, groupedCategories, categories, brands, colors, siz
               <select name="category_id" value={formData.category_id} onChange={handleChange} className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:border-gray-500 focus:outline-none bg-white">
                 <option value="">-- Оберіть категорію --</option>
                 {groupedCategories.map(group => (
-                  <optgroup key={group.id} label={group.name_uk}>
+                  <optgroup key={group.id} label={getName(group)}>
                     {group.children.map(sub => (
-                      <option key={sub.id} value={sub.id}>{sub.name_uk}</option>
+                      <option key={sub.id} value={sub.id}>{getName(sub)}</option>
                     ))}
                   </optgroup>
                 ))}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { uploadProductImage, deleteProductImage } from '../../services/storage.service';
 import { Loader2, Edit, Image as ImageIcon, X, Plus, Trash2, Star, Layers } from 'lucide-react';
+import { getName } from '../../utils/format';
 
 export default function AdminCatalog() {
   const [groups, setGroups] = useState([]);
@@ -262,8 +263,8 @@ export default function AdminCatalog() {
               ) : (
                 groups.map((group) => {
                   const mainPhoto = getMainPhoto(group.product_photos);
-                  const catName = categories.find(c => c.id === group.category_id)?.name_uk 
-                    || categories.find(c => c.slug === group.category)?.name_uk 
+                  const catName = getName(categories.find(c => c.id === group.category_id))
+                    || getName(categories.find(c => c.slug === group.category))
                     || 'Не вказано';
 
                   return (
@@ -372,9 +373,9 @@ export default function AdminCatalog() {
                 >
                   <option value="">-- Оберіть категорію --</option>
                   {groupedCategories.map(group => (
-                    <optgroup key={group.id} label={group.name_uk}>
+                    <optgroup key={group.id} label={getName(group)}>
                       {group.children.map(sub => (
-                        <option key={sub.id} value={sub.id}>{sub.name_uk}</option>
+                        <option key={sub.id} value={sub.id}>{getName(sub)}</option>
                       ))}
                     </optgroup>
                   ))}

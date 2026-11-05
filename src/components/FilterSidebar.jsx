@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { getName } from '../utils/format';
 
 function FilterSection({ title, children, defaultOpen = true }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -154,7 +155,7 @@ export default function FilterSidebar({
             <div className="mt-2 flex flex-wrap gap-1">
               {colors.filter(c => selectedColors.has(c.id)).map(c => (
                 <span key={c.id} className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                  {c.name_uk}
+                  {getName(c)}
                 </span>
               ))}
             </div>

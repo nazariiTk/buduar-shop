@@ -3,11 +3,11 @@ import { ShoppingBag, Menu, X, ChevronDown, User } from 'lucide-react';
 import { useCartStore } from '../store/useCartStore';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { getName } from '../utils/format';
 
 export default function Header() {
   const items = useCartStore((state) => state.items);
   const itemCount = items.reduce((total, item) => total + item.quantity, 0);
-  const [animateCart, setAnimateCart] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [expandedGender, setExpandedGender] = useState(null);
   const [expandedType, setExpandedType] = useState(null);
@@ -33,20 +33,7 @@ export default function Header() {
   const level1 = categories.filter(c => !c.parent_id);
   const level2 = categories.filter(c => level1.some(l => l.id === c.parent_id));
   const level3 = categories.filter(c => level2.some(l => l.id === c.parent_id));
-
-  useEffect(() => {
-    if (megaOpen && !activeGender && level1.length > 0) {
-      setActiveGender(level1[0].slug);
-    }
-  }, [megaOpen, level1]);
-
-  useEffect(() => {
-    if (itemCount > 0) {
-      setAnimateCart(true);
-      const timer = setTimeout(() => setAnimateCart(false), 300);
-      return () => clearTimeout(timer);
-    }
-  }, [itemCount]);
+  const currentGender = activeGender || level1[0]?.slug || null;
 
   useEffect(() => {
     if (menuOpen) {
@@ -93,19 +80,19 @@ export default function Header() {
                             onMouseEnter={() => setActiveGender(gender.slug)}
                             onClick={() => { navigate(`/catalog?category=${gender.slug}`); setMegaOpen(false); }}
                             className={`px-5 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
-                              activeGender === gender.slug
+                              currentGender === gender.slug
                                 ? 'border-[var(--color-text)] text-[var(--color-text)]'
                                 : 'border-transparent text-gray-500 hover:text-gray-800'
                             }`}
                           >
-                            {gender.name_uk}
+                            {getName(gender)}
                           </button>
                         ))}
                       </div>
 
                       {/* Колонки типів і підтипів */}
-                      {activeGender && (() => {
-                        const genderObj = level1.find(c => c.slug === activeGender);
+                      {currentGender && (() => {
+                        const genderObj = level1.find(c => c.slug === currentGender);
                         const types = level2.filter(c => c.parent_id === genderObj?.id);
                         
                         return (
@@ -120,7 +107,7 @@ export default function Header() {
                                     onClick={() => { navigate(`/catalog?category=${type.slug}`); setMegaOpen(false); }}
                                     className="font-semibold text-sm text-gray-900 hover:text-[var(--color-primary)] mb-3 block text-left"
                                   >
-                                    {type.name_uk}
+                                    {getName(type)}
                                   </button>
                                   <div className="space-y-1.5">
                                     {subtypes.map(sub => (
@@ -129,7 +116,7 @@ export default function Header() {
                                         onClick={() => { navigate(`/catalog?category=${sub.slug}`); setMegaOpen(false); }}
                                         className="block text-sm text-gray-500 hover:text-gray-900 transition-colors text-left"
                                       >
-                                        {sub.name_uk}
+                                        {getName(sub)}
                                       </button>
                                     ))}
                                   </div>
@@ -150,7 +137,7 @@ export default function Header() {
             </nav>
 
             <Link to="/cart" className="relative p-2 text-[var(--color-text)] hover:text-[var(--color-primary)] transition-colors">
-              <ShoppingBag className={`h-6 w-6 transition-transform duration-300 ${animateCart ? 'animate-bounce' : ''}`} />
+              <ShoppingBag key={itemCount} className={`h-6 w-6 transition-transform duration-300 ${itemCount > 0 ? 'animate-[bounce_0.3s_ease-in-out_1]' : ''}`} />
               {itemCount > 0 && (
                 <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-[var(--color-text)] rounded-full">
                   {itemCount}
@@ -193,7 +180,7 @@ export default function Header() {
                     onClick={() => setExpandedGender(isGenderOpen ? null : gender.slug)}
                     className="w-full flex justify-between items-center py-4 text-base font-semibold"
                   >
-                    {gender.name_uk}
+                    {getName(gender)}
                     <ChevronDown className={`h-4 w-4 transition-transform ${isGenderOpen ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -205,7 +192,7 @@ export default function Header() {
                         onClick={() => setMenuOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-500"
                       >
-                        Всі {gender.name_uk.toLowerCase()}
+                        Всі {getName(gender).toLowerCase()}
                       </Link>
 
                       {types.map(type => {
@@ -219,7 +206,7 @@ export default function Header() {
                               onClick={() => setExpandedType(isTypeOpen ? null : type.slug)}
                               className="w-full flex justify-between items-center px-4 py-2 text-sm font-medium text-gray-700"
                             >
-                              {type.name_uk}
+                              {getName(type)}
                               {subtypes.length > 0 && (
                                 <ChevronDown className={`h-3 w-3 transition-transform ${isTypeOpen ? 'rotate-180' : ''}`} />
                               )}
@@ -232,7 +219,7 @@ export default function Header() {
                                   onClick={() => setMenuOpen(false)}
                                   className="block py-1.5 text-xs text-gray-500"
                                 >
-                                  Всі {type.name_uk.toLowerCase()}
+                                  Всі {getName(type).toLowerCase()}
                                 </Link>
                                 {subtypes.map(sub => (
                                   <Link
@@ -241,7 +228,7 @@ export default function Header() {
                                     onClick={() => setMenuOpen(false)}
                                     className="block py-1.5 text-xs text-gray-500 hover:text-gray-800"
                                   >
-                                    {sub.name_uk}
+                                    {getName(sub)}
                                   </Link>
                                 ))}
                               </div>

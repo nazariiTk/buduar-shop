@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { Search, X, Filter } from 'lucide-react';
 import ProductCard from '../components/ProductCard';
 import FilterSidebar from '../components/FilterSidebar';
 import { supabase } from '../lib/supabase';
+import { getName } from '../utils/format';
 
 const PAGE_SIZE = 24;
 
@@ -19,7 +20,8 @@ export default function Catalog() {
   const [loading, setLoading] = useState(true);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
 
-  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(categoryFromUrl || null);
+  const [prevCategoryFromUrl, setPrevCategoryFromUrl] = useState(categoryFromUrl);
   
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
@@ -30,6 +32,22 @@ export default function Catalog() {
   const [selectedColors, setSelectedColors] = useState(new Set());
   const [selectedBrands, setSelectedBrands] = useState(new Set());
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
+
+  const applyCategoryChange = (nextCategory) => {
+    setSelectedCategory(nextCategory);
+    setSelectedSizes(new Set());
+    setSelectedColors(new Set());
+    setSelectedBrands(new Set());
+    setPriceRange({ min: '', max: '' });
+    setPage(0);
+  };
+
+  if (categoryFromUrl !== prevCategoryFromUrl) {
+    setPrevCategoryFromUrl(categoryFromUrl);
+    if (categoryFromUrl) {
+      applyCategoryChange(categoryFromUrl);
+    }
+  }
 
   // Завантажити довідники
   const [filterSizes, setFilterSizes] = useState([]);
@@ -47,25 +65,6 @@ export default function Catalog() {
       setFilterBrands(b.data || []);
     });
   }, []);
-
-  useEffect(() => {
-    setSelectedSizes(new Set());
-    setSelectedColors(new Set());
-    setSelectedBrands(new Set());
-    setPriceRange({ min: '', max: '' });
-    setPage(0);
-  }, [selectedCategory]);
-
-  useEffect(() => {
-    setPage(0);
-  }, [selectedCategory, searchQuery]);
-
-  // Set active categories when URL param or categories load
-  useEffect(() => {
-    if (categoryFromUrl && categories.length > 0) {
-      setSelectedCategory(categoryFromUrl);
-    }
-  }, [categoryFromUrl, categories]);
 
   useEffect(() => {
     async function fetchCategories() {
@@ -196,8 +195,6 @@ export default function Catalog() {
           const mainSku = p.product_skus?.find(s => s.is_main) || p.product_skus?.[0];
           return mainSku?.article_id;
         }).filter(Boolean);
-
-        const productIds = catalogData.map(p => p.id).filter(Boolean);
 
         let priceMap = {};
 
@@ -333,10 +330,10 @@ export default function Catalog() {
           {selectedCategory && !searchQuery && (
             <div className="flex items-center gap-2 mb-4">
               <span className="text-sm text-gray-500">
-                {categories.find(c => c.slug === selectedCategory)?.name_uk}
+                {getName(categories.find(c => c.slug === selectedCategory))}
               </span>
               <button
-                onClick={() => { setSelectedCategory(null); setPage(0); }}
+                onClick={() => applyCategoryChange(null)}
                 className="text-xs text-gray-400 hover:text-gray-600"
               >
                 ✕ Скинути
@@ -376,8 +373,7 @@ export default function Catalog() {
                       key={cat.id}
                       onClick={() => {
                         setSearchQuery('');
-                        setSelectedCategory(cat.slug);
-                        setPage(0);
+                        applyCategoryChange(cat.slug);
                       }}
                       className="px-4 py-2 border border-gray-200 rounded-full text-sm hover:border-gray-400 bg-white transition-colors"
                     >
