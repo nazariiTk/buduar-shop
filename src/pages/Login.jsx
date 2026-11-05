@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import BoudoirOrnament from '../components/BoudoirOrnament';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -20,23 +21,73 @@ export default function Login() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12">
-      <h1 className="text-4xl font-serif mb-8">Вхід</h1>
-      <form onSubmit={submit} className="space-y-5 bg-white border border-gray-200 rounded-lg p-6">
-        <label className="block text-sm font-medium">Email
-          <input type="email" required value={email} onChange={e => setEmail(e.target.value)}
-            className="mt-2 w-full border border-gray-300 rounded-md px-4 py-3" />
-        </label>
-        <label className="block text-sm font-medium">Пароль
-          <input type="password" required value={password} onChange={e => setPassword(e.target.value)}
-            className="mt-2 w-full border border-gray-300 rounded-md px-4 py-3" />
-        </label>
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        <button disabled={loading} className="w-full bg-[var(--color-text)] text-white py-3 rounded-md disabled:opacity-50">
-          {loading ? 'Вхід...' : 'Увійти'}
-        </button>
-      </form>
-      <p className="mt-5 text-sm text-gray-600">Немає акаунта? <Link className="underline" to="/register">Зареєструватися</Link></p>
+    <div className="max-w-md mx-auto px-4 py-16">
+      <div className="bg-surface border border-border/40 p-8 sm:p-10 relative">
+        <BoudoirOrnament variant="corner" className="w-8 h-8 text-border/60 absolute top-2 left-2 pointer-events-none" />
+        <BoudoirOrnament variant="corner" className="w-8 h-8 text-border/60 absolute top-2 right-2 -scale-x-100 pointer-events-none" />
+        <BoudoirOrnament variant="corner" className="w-8 h-8 text-border/60 absolute bottom-2 left-2 -scale-y-100 pointer-events-none" />
+        <BoudoirOrnament variant="corner" className="w-8 h-8 text-border/60 absolute bottom-2 right-2 -scale-x-100 -scale-y-100 pointer-events-none" />
+
+        <div className="text-center mb-6">
+          <p className="text-xs uppercase tracking-[0.25em] text-text-light font-serif mb-2">
+            Бутик «Будуар»
+          </p>
+          <h1 className="text-3xl font-serif text-text mb-3">Вхід до кабінету</h1>
+          <BoudoirOrnament variant="divider" className="w-24 mx-auto text-border" />
+        </div>
+
+        <form onSubmit={submit} className="space-y-5">
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-text-light mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className="w-full bg-background border border-border/40 text-text px-4 py-3 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary focus-visible:outline-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs uppercase tracking-wider text-text-light mb-2">
+              Пароль
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-background border border-border/40 text-text px-4 py-3 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary focus-visible:outline-primary"
+            />
+          </div>
+
+          {error && (
+            <div className="p-3 bg-danger/10 border border-danger/30 text-danger text-sm">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-on-primary hover:bg-primary-hover border border-border/40 py-3.5 text-xs font-serif uppercase tracking-widest transition-colors duration-300 disabled:opacity-50 focus-visible:outline-primary shadow-sm"
+          >
+            {loading ? 'Вхід...' : 'Увійти'}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-xs text-text-light">
+          Ще не маєте акаунта?{' '}
+          <Link
+            to="/register"
+            className="text-primary hover:underline underline-offset-4 font-medium"
+          >
+            Зареєструватися
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }
