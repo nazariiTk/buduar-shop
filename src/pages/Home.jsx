@@ -12,19 +12,8 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState(null);
 
   async function fetchPopular(categorySlug) {
-    // 1. Спробуємо взяти популярні з замовлень
-    const { data: orderData } = await supabase
-      .from('order_items')
-      .select('product_slug, product_name, count:id.count()')
-      .not('product_slug', 'is', null)
-      .order('count', { ascending: false })
-      .limit(8);
-
-    let slugs = orderData?.map(i => i.product_slug) || [];
-    let fetchedProducts = [];
-
     // Query helper function
-    const getQuery = (filterSlugs) => {
+    const getQuery = () => {
       let query = supabase
         .from('products')
         // Using inner join on categories to filter by slug if provided
@@ -34,25 +23,16 @@ export default function Home() {
           product_skus(article_id, is_main),
           categories${categorySlug ? '!inner' : ''}(slug)
         `)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
       
-      if (filterSlugs) query = query.in('slug', filterSlugs);
       if (categorySlug) query = query.eq('categories.slug', categorySlug);
       
       return query;
     };
 
-    if (slugs.length > 0) {
-      const { data } = await getQuery(slugs);
-      fetchedProducts = data || [];
-    }
-
-    // 2. Fallback — якщо популярних немає (або немає за обраною категорією)
-    if (fetchedProducts.length === 0) {
-      let query = getQuery().limit(8);
-      const { data } = await query;
-      fetchedProducts = data || [];
-    }
+    const { data } = await getQuery().limit(8);
+    let fetchedProducts = data || [];
 
     // 3. Збагачуємо даними цін
     if (fetchedProducts.length > 0) {
