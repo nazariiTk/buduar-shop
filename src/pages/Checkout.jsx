@@ -553,21 +553,6 @@ export default function Checkout() {
                     <span className="text-xs text-text-light">У відділенні Нової Пошти (післяплата) або в бутику</span>
                   </div>
                 </label>
-
-                <label className={`flex items-start gap-3 p-3.5 border cursor-pointer transition-colors ${formData.payment === 'card' ? 'border-primary bg-primary-light/30' : 'border-border/30 bg-background hover:border-border/60'}`}>
-                  <input
-                    type="radio"
-                    name="payment"
-                    value="card"
-                    checked={formData.payment === 'card'}
-                    onChange={handleInputChange}
-                    className="mt-1 h-4 w-4 accent-primary focus-visible:outline-primary"
-                  />
-                  <div>
-                    <span className="text-sm font-medium text-text block">Передоплата на розрахунковий рахунок (IBAN)</span>
-                    <span className="text-xs text-text-light">Реквізити надішле менеджер після підтвердження наявності</span>
-                  </div>
-                </label>
               </div>
             </div>
 
